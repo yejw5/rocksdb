@@ -3849,8 +3849,9 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
         }
       }
 
-      const SequenceNumber current_sequence = last_sequence + 1;
-      WriteBatchInternal::SetSequence(updates, current_sequence);
+      const SequenceNumber current_sequence = write_options.given_sequence_number == 0 ?
+          (last_sequence + 1) : write_options.given_sequence_number;
+      WriteBatchInternal::SetSequence(updates, current_sequence, write_options.given_sequence_number > 0);
       int my_batch_count = WriteBatchInternal::Count(updates);
       last_sequence += my_batch_count;
       const uint64_t batch_size = WriteBatchInternal::ByteSize(updates);

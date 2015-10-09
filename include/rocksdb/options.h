@@ -1289,11 +1289,20 @@ struct WriteOptions {
   // Default: false
   bool ignore_missing_column_families;
 
+  // Sequence number is usually controlled by the db itself as 1,2,3, ...
+  // however, in cases where the upper frameworks (e.g., replication), the sequence
+  // number is given and the underlying db should use this given sequence number directly
+  // instead of generating one by itself.
+  //
+  // Default: 0 (rocksdb should generate the number by itself in this case)
+  SequenceNumber given_sequence_number;
+
   WriteOptions()
       : sync(false),
         disableWAL(false),
         timeout_hint_us(0),
-        ignore_missing_column_families(false) {}
+        ignore_missing_column_families(false),
+        given_sequence_number(0) {}
 };
 
 // Options that control flush operations
