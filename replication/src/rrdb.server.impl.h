@@ -2,6 +2,7 @@
 
 # include "rrdb.server.h"
 # include <rocksdb/db.h>
+# include <vector>
 
 namespace dsn {
     namespace apps {
@@ -26,12 +27,17 @@ namespace dsn {
             virtual ::dsn::replication::decree last_durable_decree() const;
 
         private:
+            ::dsn::replication::decree parse_for_checkpoints();
+
+        private:
             rocksdb::DB           *_db;
             rocksdb::WriteOptions _wt_opts;
             rocksdb::ReadOptions  _rd_opts;
 
             std::atomic<bool>     _is_open;
-
+            std::vector<rocksdb::SequenceNumber> _checkpoints;
         };
+
+        // --------- inline implementations -----------------
     }
 }

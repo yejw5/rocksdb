@@ -1,4 +1,7 @@
 # include "rrdb.server.impl.h"
+# include <algorithm>
+# include <dsn/cpp/utils.h>
+# include <rocksdb/utilities/checkpoint.h>
 
 # ifdef __TITLE__
 # undef __TITLE__
@@ -7,16 +10,48 @@
 
 namespace dsn {
     namespace apps {
+        
+        static std::string chkpt_get_dir_name(rocksdb::SequenceNumber last_seq)
+        {
+            char buffer[256];
+            sprintf(buffer, "checkpoint.%lld", last_seq);
+            return std::string(buffer);
+        }
+
+        static bool chkpt_init_from_dir(const char* name, rocksdb::SequenceNumber& last_seq)
+        {
+            return 1 == sscanf(name, "checkpoint.%lld", &last_seq);
+        }
+
         rrdb_service_impl::rrdb_service_impl(::dsn::replication::replica* replica)
             : rrdb_service(replica)
         {
             _is_open = false;
 
             // disable write ahead logging as replication handles logging instead now
-            _wt_opts.disableWAL = true;
+            _wt_opts.disableWAL = false;
+        }
 
-            // set flag so replication knows how to learn
-            set_delta_state_learning_supported();
+        ::dsn::replication::decree rrdb_service_impl::parse_for_checkpoints()
+        {
+            std::vector<std::string> dirs;
+            utils::filesystem::get_subdirectories(data_dir(), dirs, false);
+
+            _checkpoints.clear();
+            for (auto& d : dirs)
+            {
+                rocksdb::SequenceNumber ch;
+                std::string d1 = d;
+                d1 = d1.substr(data_dir().length() + 1);
+                if (chkpt_init_from_dir(d1.c_str(), ch))
+                {
+                    _checkpoints.push_back(ch);
+                }
+            }
+
+            std::sort(_checkpoints.begin(), _checkpoints.end());
+
+            return _checkpoints.size() > 0 ? *_checkpoints.rbegin() : 0;
         }
 
         void rrdb_service_impl::on_empty_write()
@@ -37,13 +72,17 @@ namespace dsn {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
             
             rocksdb::WriteOptions opts = _wt_opts;
-            //opts.given_sequence_number = static_cast<rocksdb::SequenceNumber>(_last_committed_decree + 1);
+            opts.given_sequence_number = last_committed_decree() + 1;
 
             rocksdb::Slice skey(update.key.data(), update.key.length());
             rocksdb::Slice svalue(update.value.data(), update.value.length());
             rocksdb::Status status = _db->Put(opts, skey, svalue);
             dassert(status.ok(), status.ToString().c_str());
-            dassert(_db->GetLatestSequenceNumber() == _last_committed_decree + 1, "");
+            dassert(_db->GetLatestSequenceNumber() == last_committed_decree() + 1,
+                "mismatched sequencenumber %lld vs %lld",
+                _db->GetLatestSequenceNumber(),
+                last_committed_decree() + 1
+                );
             reply(status.code());
 
             ++_last_committed_decree;
@@ -54,12 +93,16 @@ namespace dsn {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
             
             rocksdb::WriteOptions opts = _wt_opts;
-            //opts.given_sequence_number = static_cast<rocksdb::SequenceNumber>(_last_committed_decree + 1);
+            opts.given_sequence_number = last_committed_decree() + 1;
 
             rocksdb::Slice skey(key.data(), key.length());
             rocksdb::Status status = _db->Delete(opts, skey);
             dassert(status.ok(), status.ToString().c_str());
-            dassert(_db->GetLatestSequenceNumber() == _last_committed_decree + 1, "");
+            dassert(_db->GetLatestSequenceNumber() == last_committed_decree() + 1, 
+                "mismatched sequencenumber %lld vs %lld",
+                _db->GetLatestSequenceNumber(),
+                last_committed_decree() + 1
+                );
             reply(status.code());
 
             ++_last_committed_decree;
@@ -70,13 +113,17 @@ namespace dsn {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
             
             rocksdb::WriteOptions opts = _wt_opts;
-            //opts.given_sequence_number = static_cast<rocksdb::SequenceNumber>(_last_committed_decree + 1);
+            opts.given_sequence_number = last_committed_decree() + 1;
 
             rocksdb::Slice skey(update.key.data(), update.key.length());
             rocksdb::Slice svalue(update.value.data(), update.value.length());
             rocksdb::Status status = _db->Merge(opts, skey, svalue);
             dassert(status.ok(), status.ToString().c_str());
-            dassert(_db->GetLatestSequenceNumber() == _last_committed_decree + 1, "");
+            dassert(_db->GetLatestSequenceNumber() == last_committed_decree() + 1,
+                "mismatched sequencenumber %lld vs %lld",
+                _db->GetLatestSequenceNumber(),
+                last_committed_decree() + 1
+                );
             reply(status.code());
 
             ++_last_committed_decree;
@@ -113,15 +160,20 @@ namespace dsn {
             auto status = rocksdb::DB::Open(opts, data_dir() + "/rdb", &_db);
             if (status.ok())
             {
-                // because disableWAL is set true when do writes, so after open db,
-                // it should satisfy that LatestSequenceNumber == LatestDurableSequenceNumber.
-                //dassert(_db->GetLatestSequenceNumber() == _db->GetLatestDurableSequenceNumber(), "");
                 _is_open = true;
                 _last_committed_decree = _db->GetLatestSequenceNumber();
+                _last_durable_decree = parse_for_checkpoints();
 
-                ddebug("open app: lastC/DDecree = <%llu, %llu>", last_committed_decree(), last_durable_decree());
+                ddebug("open app %s: last_committed/durable decree = <%llu, %llu>",
+                    data_dir().c_str(), last_committed_decree(), last_durable_decree());
             }
-
+            else
+            {
+                derror("open app %s failed, err = %s",
+                    data_dir().c_str(),
+                    status.ToString().c_str()
+                    );
+            }
             return status.code();
         }
 
@@ -153,10 +205,29 @@ namespace dsn {
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
-            rocksdb::FlushOptions opts;
-            opts.wait = wait;
+            if (_last_durable_decree == _last_committed_decree)
+                return 0;
 
-            auto status = _db->Flush(opts);
+            rocksdb::Checkpoint* chkpt = nullptr;
+            auto status = rocksdb::Checkpoint::Create(_db, &chkpt);
+            if (!status.ok())
+            {
+                return status.code();
+            }
+
+            rocksdb::SequenceNumber ch = last_committed_decree();
+            auto dir = chkpt_get_dir_name(ch);
+
+            auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
+            
+            status = chkpt->CreateCheckpoint(chkpt_dir);
+            if (status.ok())
+            {
+                _last_durable_decree = last_committed_decree();
+                _checkpoints.push_back(ch);
+            }
+
+            delete chkpt;
             return status.code();
         }
 
@@ -170,64 +241,29 @@ namespace dsn {
             const blob& learn_req, 
             /*out*/ ::dsn::replication::learn_state& state)
         {
+            // simply copy all files
+
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
-            rocksdb::SequenceNumber start0 = start;
-            rocksdb::SequenceNumber end;
-            std::string mem_state;
-            std::string edit;
-
-            return 0;
-            
-            /*auto status = _db->GetLearningState(start0, end, mem_state, edit, state.files);
-            if (status.ok())
+            if (_checkpoints.size() > 0)
             {
-                binary_writer writer;
-                writer.write(start0);
-                writer.write(end);
-                writer.write(edit);
-                writer.write(mem_state);
+                rocksdb::SequenceNumber ch = *_checkpoints.rbegin();
+                auto dir = chkpt_get_dir_name(ch);
 
-                ddebug("lastC/DDecree=<%llu,%llu>, meta_size=%d, "
-                       "start=%lld, end=%lld, file_count=%d, mem_state_size=%d",
-                       last_committed_decree(), last_durable_decree(), writer.total_size(),
-                       static_cast<long long int>(start0), static_cast<long long int>(end),
-                       state.files.size(), mem_state.size());
-
-                state.meta.push_back(writer.get_buffer());
+                auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
+                auto err = utils::filesystem::get_subfiles(chkpt_dir, state.files, true);
+                dassert(err, "list files in chkpoint dir %s failed", chkpt_dir.c_str());
             }
-
-            return status.code();*/
+            
+            return 0;
         }
 
         int  rrdb_service_impl::apply_learn_state(::dsn::replication::learn_state& state)
         {
-            dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
-
             int err = 0;
-            binary_reader reader(state.meta[0]);
 
-            rocksdb::SequenceNumber start;
-            rocksdb::SequenceNumber end;
-            std::string edit;
-            std::string mem_state;
-
-            reader.read(start);
-            reader.read(end);
-            reader.read(edit);
-            reader.read(mem_state);
-
-            ddebug("lastC/DDecree=<%llu,%llu>, meta_size=%d, "
-                   "start=%lld, end=%lld, file_count=%d, mem_state_size=%d",
-                   last_committed_decree(), last_durable_decree(), reader.total_size(),
-                   static_cast<long long int>(start), static_cast<long long int>(end),
-                   state.files.size(), mem_state.size());
-
-            if (start == 0 && last_committed_decree() > 0)
+            if (_is_open)
             {
-                // learn from scratch, should clear db firstly and then re-create it
-                ddebug("start == 0, learn from scratch, clear db and then re-create it");
-
                 // clear db
                 err = close(true);
                 if (err != 0)
@@ -235,69 +271,54 @@ namespace dsn {
                     derror("clear db %s failed, err = %d", data_dir().c_str(), err);
                     return err;
                 }
+            }
+            else
+            {
+                ::dsn::utils::filesystem::remove_path(data_dir());
+            }
 
-                // re-create db
+            // create data dir first
+            ::dsn::utils::filesystem::create_directory(data_dir());
+
+            // move learned files from learn_dir to data_dir
+            std::string learn_dir = ::dsn::utils::filesystem::remove_file_name(*state.files.rbegin());
+            std::string new_dir = ::dsn::utils::filesystem::path_combine(
+                data_dir(),
+                "rdb"
+                );
+
+            if (!::dsn::utils::filesystem::rename_path(learn_dir, new_dir))
+            {
+                derror("rename %s to %s failed", learn_dir.c_str(), new_dir.c_str());
+                return ERR_FILE_OPERATION_FAILED;
+            }
+
+            /*for (auto &old_p : state.files)
+            {
+            }*/
+
+            // reopen the db with the new checkpoint files
+            if (state.files.size() > 0)
+                err = open(false);
+            else
                 err = open(true);
-                if (err != 0)
-                {
-                    derror("open db %s failed, err = %d", data_dir().c_str(), err);
-                    return err;
-                }
-            }
 
-            if (mem_state.size() == 0 && state.files.size() == 0)
+            if (err != 0)
             {
-                // nothing to learn
-                dassert((start == 0 && end == 0) || end == start - 1, "");
-                dassert(end == last_committed_decree(), "");
-                return 0;
+                derror("open db %s failed, err = %d", data_dir().c_str(), err);
+                return err;
             }
-
-            // rename 'learn_dir/xxx.sst' to 'data_dir/xxx.sst.learn' to avoid conflicting
-            // with exist files.
-            for (auto &f : state.files)
+            else
             {
-                std::string old_p = learn_dir() + f;
-                std::string new_p = data_dir() + f + ".learn";
-
-                // create directory recursively if necessary
-                std::string path = new_p;
-                path = ::dsn::utils::filesystem::remove_file_name(path);
-                if (!::dsn::utils::filesystem::path_exists(path))
-                    ::dsn::utils::filesystem::create_directory(path);
-
-                if (!::dsn::utils::filesystem::rename_path(old_p, new_p))
-                {
-                    // TODO(qinzuoyan) delete garbage files
-                    derror("rename %s to %s failed", old_p.c_str(), new_p.c_str());
-                    return ERR_FILE_OPERATION_FAILED;
-                }
+                flush(true);
             }
 
             return 0;
-            /*auto status = _db->ApplyLearningState(start, end, mem_state, edit);
-            if (status.ok())
-            {
-                _last_committed_decree = end;
-                ddebug("after ApplyLearningState in DB %s, "
-                       "updated <C,D> to <%lld, %lld> with <start,end> as <%lld, %lld>",
-                       data_dir().c_str(),
-                       static_cast<long long int>(last_committed_decree()),
-                       static_cast<long long int>(last_durable_decree()),
-                       static_cast<long long int>(start),
-                       static_cast<long long int>(end)
-                      );
-            }
-
-            return status.code();*/
         }
                 
         ::dsn::replication::decree rrdb_service_impl::last_durable_decree() const
         {
-            dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
-
-            //return _db->GetLatestDurableSequenceNumber();
-            return 0;
+            return _last_durable_decree.load();
         }
     }
 }
