@@ -24,7 +24,7 @@ namespace dsn {
         }
 
         rrdb_service_impl::rrdb_service_impl(::dsn::replication::replica* replica)
-            : rrdb_service(replica)
+            : rrdb_service(replica), _max_checkpoint_count(3)
         {
             _is_open = false;
 
@@ -201,6 +201,7 @@ namespace dsn {
             return 0;
         }
 
+        // flush is always done in the same single thread, so
         int  rrdb_service_impl::flush(bool wait)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
@@ -220,11 +221,45 @@ namespace dsn {
 
             auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
             
+            if (utils::filesystem::directory_exists(chkpt_dir))
+                utils::filesystem::remove_path(chkpt_dir);
+
             status = chkpt->CreateCheckpoint(chkpt_dir);
             if (status.ok())
             {
                 _last_durable_decree = last_committed_decree();
                 _checkpoints.push_back(ch);
+
+                while (_checkpoints.size() > _max_checkpoint_count)
+                {
+                    auto old_cpt = chkpt_get_dir_name(*_checkpoints.begin());
+                    if (utils::filesystem::directory_exists(old_cpt))
+                    {
+                        if (utils::filesystem::remove_path(old_cpt))
+                        {
+                            dinfo("%s: checkpoint %s removed", data_dir().c_str(), old_cpt.c_str());
+                            _checkpoints.erase(_checkpoints.begin());
+                        }
+                        else
+                        {
+                            derror("%s: remove checkpoint %s failed", data_dir().c_str(), old_cpt.c_str());
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        derror("%s: checkpoint %s does not exist ...", data_dir().c_str(), old_cpt.c_str());
+                        _checkpoints.erase(_checkpoints.begin());
+                    }
+                }
+            }
+            else
+            {
+                derror("%s: checkpoint to %s failed, err = %s",
+                    learn_dir().c_str(),
+                    chkpt_dir.c_str(),
+                    status.ToString().c_str()
+                    );
             }
 
             delete chkpt;

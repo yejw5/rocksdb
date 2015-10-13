@@ -36,6 +36,7 @@ namespace dsn {
 
             std::atomic<bool>     _is_open;
             std::vector<rocksdb::SequenceNumber> _checkpoints;
+            const int             _max_checkpoint_count;
         };
 
         // --------- inline implementations -----------------
