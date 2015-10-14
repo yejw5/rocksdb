@@ -164,6 +164,8 @@ namespace dsn {
                 _last_committed_decree = _db->GetLatestSequenceNumber();
                 _last_durable_decree = parse_for_checkpoints();
 
+                gc_checkpoints();
+
                 ddebug("open app %s: last_committed/durable decree = <%llu, %llu>",
                     data_dir().c_str(), last_committed_decree(), last_durable_decree());
             }
@@ -230,28 +232,7 @@ namespace dsn {
                 _last_durable_decree = last_committed_decree();
                 _checkpoints.push_back(ch);
 
-                while (_checkpoints.size() > _max_checkpoint_count)
-                {
-                    auto old_cpt = chkpt_get_dir_name(*_checkpoints.begin());
-                    if (utils::filesystem::directory_exists(old_cpt))
-                    {
-                        if (utils::filesystem::remove_path(old_cpt))
-                        {
-                            dinfo("%s: checkpoint %s removed", data_dir().c_str(), old_cpt.c_str());
-                            _checkpoints.erase(_checkpoints.begin());
-                        }
-                        else
-                        {
-                            derror("%s: remove checkpoint %s failed", data_dir().c_str(), old_cpt.c_str());
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        derror("%s: checkpoint %s does not exist ...", data_dir().c_str(), old_cpt.c_str());
-                        _checkpoints.erase(_checkpoints.begin());
-                    }
-                }
+                gc_checkpoints();
             }
             else
             {
@@ -264,6 +245,33 @@ namespace dsn {
 
             delete chkpt;
             return status.code();
+        }
+
+        void rrdb_service_impl::gc_checkpoints()
+        {
+            while (_checkpoints.size() > _max_checkpoint_count)
+            {
+                auto old_cpt = chkpt_get_dir_name(*_checkpoints.begin());
+                auto old_cpt_dir = utils::filesystem::path_combine(data_dir(), old_cpt);
+                if (utils::filesystem::directory_exists(old_cpt_dir))
+                {
+                    if (utils::filesystem::remove_path(old_cpt_dir))
+                    {
+                        dinfo("%s: checkpoint %s removed", data_dir().c_str(), old_cpt_dir.c_str());
+                        _checkpoints.erase(_checkpoints.begin());
+                    }
+                    else
+                    {
+                        derror("%s: remove checkpoint %s failed", data_dir().c_str(), old_cpt_dir.c_str());
+                        break;
+                    }
+                }
+                else
+                {
+                    derror("%s: checkpoint %s does not exist ...", data_dir().c_str(), old_cpt_dir.c_str());
+                    _checkpoints.erase(_checkpoints.begin());
+                }
+            }
         }
 
         void rrdb_service_impl::prepare_learning_request(/*out*/ blob& learn_req)

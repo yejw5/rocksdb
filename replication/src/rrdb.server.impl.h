@@ -28,6 +28,7 @@ namespace dsn {
 
         private:
             ::dsn::replication::decree parse_for_checkpoints();
+            void gc_checkpoints();
 
         private:
             rocksdb::DB           *_db;
