@@ -23,12 +23,12 @@ set(MY_SRC_SEARCH_MODE "GLOB")
 
 set(MY_PROJ_INC_PATH "../../include")
 
-set(MY_PROJ_LIBS dsn.replication dsn.replication.meta_server dsn.replication.clientlib dsn.failure_detector rocksdblib)
+set(MY_PROJ_LIBS dsn.replication dsn.replication.meta_server dsn.replication.clientlib dsn.failure_detector)
 
 if (UNIX)
-	set(MY_PROJ_LIBS ${MY_PROJ_LIBS} z bz2 lz4 snappy rt aio pthread)
+	set(MY_PROJ_LIBS rocksdb ${MY_PROJ_LIBS} z bz2 snappy rt aio pthread)
 else()
-	set(MY_PROJ_LIBS ${MY_PROJ_LIBS} rpcrt4)
+	set(MY_PROJ_LIBS rocksdblib ${MY_PROJ_LIBS} rpcrt4)
 endif()
 
 set(MY_PROJ_LIB_PATH "../../")
