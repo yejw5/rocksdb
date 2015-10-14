@@ -29,7 +29,7 @@ namespace dsn {
             _is_open = false;
 
             // disable write ahead logging as replication handles logging instead now
-            _wt_opts.disableWAL = false;
+            _wt_opts.disableWAL = true;
         }
 
         ::dsn::replication::decree rrdb_service_impl::parse_for_checkpoints()
