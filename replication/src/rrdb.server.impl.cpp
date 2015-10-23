@@ -20,7 +20,8 @@ namespace dsn {
 
         static bool chkpt_init_from_dir(const char* name, rocksdb::SequenceNumber& last_seq)
         {
-            return 1 == sscanf(name, "checkpoint.%lld", &last_seq);
+            return 1 == sscanf(name, "checkpoint.%lld", &last_seq)
+                && std::string(name) == chkpt_get_dir_name(last_seq);
         }
 
         rrdb_service_impl::rrdb_service_impl(::dsn::replication::replica* replica)
@@ -46,6 +47,13 @@ namespace dsn {
                 if (chkpt_init_from_dir(d1.c_str(), ch))
                 {
                     _checkpoints.push_back(ch);
+                }
+                else if (d1.substr(0, 10) == std::string("checkpoint"))
+                {
+                    derror("invalid checkpoint directory %s, remove ...",
+                        d.c_str()
+                        );
+                    utils::filesystem::remove_path(d);
                 }
             }
 
@@ -230,7 +238,11 @@ namespace dsn {
             if (status.ok())
             {
                 _last_durable_decree = last_committed_decree();
-                _checkpoints.push_back(ch);
+
+                {
+                    utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                    _checkpoints.push_back(ch);
+                }                
 
                 gc_checkpoints();
             }
@@ -249,27 +261,40 @@ namespace dsn {
 
         void rrdb_service_impl::gc_checkpoints()
         {
-            while (_checkpoints.size() > _max_checkpoint_count)
+            while (true)
             {
-                auto old_cpt = chkpt_get_dir_name(*_checkpoints.begin());
+                uint64_t del_d = 0;
+
+                {
+                    utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                    if (_checkpoints.size() <= _max_checkpoint_count)
+                        break;
+                    del_d = *_checkpoints.begin();
+                    _checkpoints.erase(_checkpoints.begin());
+                }
+
+                auto old_cpt = chkpt_get_dir_name(del_d);
                 auto old_cpt_dir = utils::filesystem::path_combine(data_dir(), old_cpt);
                 if (utils::filesystem::directory_exists(old_cpt_dir))
                 {
                     if (utils::filesystem::remove_path(old_cpt_dir))
                     {
                         dinfo("%s: checkpoint %s removed", data_dir().c_str(), old_cpt_dir.c_str());
-                        _checkpoints.erase(_checkpoints.begin());
                     }
                     else
                     {
                         derror("%s: remove checkpoint %s failed", data_dir().c_str(), old_cpt_dir.c_str());
+                        {
+                            utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                            _checkpoints.push_back(del_d);
+                            std::sort(_checkpoints.begin(), _checkpoints.end());
+                        }
                         break;
                     }
                 }
                 else
                 {
                     derror("%s: checkpoint %s does not exist ...", data_dir().c_str(), old_cpt_dir.c_str());
-                    _checkpoints.erase(_checkpoints.begin());
                 }
             }
         }
@@ -287,15 +312,24 @@ namespace dsn {
             // simply copy all files
 
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
-
-            if (_checkpoints.size() > 0)
+            rocksdb::SequenceNumber ch = 0;
             {
-                rocksdb::SequenceNumber ch = *_checkpoints.rbegin();
+                utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                if (_checkpoints.size() > 0)
+                    ch = *_checkpoints.rbegin();
+            }
+
+            if (ch > 0)
+            {
                 auto dir = chkpt_get_dir_name(ch);
 
                 auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
-                auto err = utils::filesystem::get_subfiles(chkpt_dir, state.files, true);
-                dassert(err, "list files in chkpoint dir %s failed", chkpt_dir.c_str());
+                auto succ = utils::filesystem::get_subfiles(chkpt_dir, state.files, true);
+                if (!succ)
+                {
+                    derror("list files in chkpoint dir %s failed", chkpt_dir.c_str());
+                    return ERR_FILE_OPERATION_FAILED;
+                }
             }
             
             return 0;

@@ -35,9 +35,11 @@ namespace dsn {
             rocksdb::WriteOptions _wt_opts;
             rocksdb::ReadOptions  _rd_opts;
 
-            std::atomic<bool>     _is_open;
-            std::vector<rocksdb::SequenceNumber> _checkpoints;
+            std::atomic<bool>     _is_open;            
             const int             _max_checkpoint_count;
+
+            std::vector<rocksdb::SequenceNumber> _checkpoints;
+            ::dsn::utils::ex_lock_nr             _checkpoints_lock;
         };
 
         // --------- inline implementations -----------------
