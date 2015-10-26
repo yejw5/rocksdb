@@ -104,8 +104,13 @@ PIMAGE_TLS_CALLBACK p_thread_callback_on_exit = wintlscleanup::WinOnThreadExit;
 #endif  // OS_WIN
 
 ThreadLocalPtr::StaticMeta* ThreadLocalPtr::Instance() {
-  static ThreadLocalPtr::StaticMeta inst;
-  return &inst;
+  static std::once_flag flag;
+  static ThreadLocalPtr::StaticMeta* pinst = nullptr;
+  std::call_once(flag, [&]()
+  {
+    pinst = new ThreadLocalPtr::StaticMeta();
+  });
+  return pinst;
 }
 
 void ThreadLocalPtr::StaticMeta::OnThreadExit(void* ptr) {
