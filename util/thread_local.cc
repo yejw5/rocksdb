@@ -11,6 +11,7 @@
 #include "util/mutexlock.h"
 #include "port/likely.h"
 #include <stdlib.h>
+#include <mutex>
 
 namespace rocksdb {
 
