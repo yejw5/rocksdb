@@ -204,7 +204,7 @@ namespace dsn {
             {
                 if (!dsn::utils::filesystem::remove_path(data_dir()))
                 {
-                    dassert(false, "Fail to delete directory %s.", data_dir().c_str());
+                    return ERR_FILE_OPERATION_FAILED;
                 }
             }
 

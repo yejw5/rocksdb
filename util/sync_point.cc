@@ -6,6 +6,7 @@
 #include "util/sync_point.h"
 #include "port/port.h"
 #include "util/random.h"
+#include <mutex>
 
 int rocksdb_kill_odds = 0;
 
@@ -23,9 +24,14 @@ void TestKillRandom(int odds, const std::string& srcfile, int srcline) {
   }
 }
 
-SyncPoint* SyncPoint::GetInstance() {
-  static SyncPoint sync_point;
-  return &sync_point;
+SyncPoint* SyncPoint::GetInstance() {  
+  static std::once_flag flag;
+  static SyncPoint* psync_point = nullptr;
+  std::call_once(flag, [&]()
+  {
+      psync_point = new SyncPoint();
+  });
+  return psync_point;
 }
 
 void SyncPoint::LoadDependency(const std::vector<Dependency>& dependencies) {
