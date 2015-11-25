@@ -34,7 +34,10 @@ endif()
 set(MY_PROJ_LIB_PATH "../../")
 
 # Extra files that will be installed
-set(MY_BINPLACES "${CMAKE_CURRENT_SOURCE_DIR}/config.ini" "${CMAKE_CURRENT_SOURCE_DIR}/test.cmd")
+set(MY_BINPLACES 
+    "${CMAKE_CURRENT_SOURCE_DIR}/config.ini" "${CMAKE_CURRENT_SOURCE_DIR}/test.cmd"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vconfig.ini" "${CMAKE_CURRENT_SOURCE_DIR}/vtest.cmd"
+    )
 
 dsn_common_setup()
 dsn_add_executable()
