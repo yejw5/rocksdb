@@ -96,7 +96,7 @@ class WriteBatchInternal {
 
   // Store the specified number as the seqeunce number for the start of
   // this batch.
-  static void SetSequence(WriteBatch* batch, SequenceNumber seq, bool shared_seq = false);
+  static void SetSequence(WriteBatch* batch, SequenceNumber seq);
 
   // Returns the offset of the first entry in the batch.
   // This offset is only valid if the batch is not empty.

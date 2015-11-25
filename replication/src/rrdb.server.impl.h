@@ -19,7 +19,7 @@ namespace dsn {
             virtual int  open(bool create_new);
             virtual int  close(bool clear_state);
             virtual int  flush(bool wait);
-            virtual void on_empty_write();
+            
             virtual void prepare_learning_request(/*out*/ blob& learn_req);
             virtual int  get_learn_state(::dsn::replication::decree start,
                     const blob& learn_req, /*out*/ ::dsn::replication::learn_state& state);
@@ -27,19 +27,31 @@ namespace dsn {
             virtual ::dsn::replication::decree last_durable_decree() const;
 
         private:
-            ::dsn::replication::decree parse_for_checkpoints();
+            struct checkpoint_info
+            {
+                ::dsn::replication::decree d;
+                rocksdb::SequenceNumber    seq;
+            };
+
+            checkpoint_info parse_for_checkpoints();
             void gc_checkpoints();
+            void write_batch();
 
         private:
             rocksdb::DB           *_db;
+            rocksdb::WriteBatch   _batch;
+            std::vector<rpc_replier<int>> _batch_repliers;
             rocksdb::WriteOptions _wt_opts;
             rocksdb::ReadOptions  _rd_opts;
 
             std::atomic<bool>     _is_open;            
             const int             _max_checkpoint_count;
-
-            std::vector<rocksdb::SequenceNumber> _checkpoints;
-            ::dsn::utils::ex_lock_nr             _checkpoints_lock;
+                        
+            rocksdb::SequenceNumber      _last_seq;
+            rocksdb::SequenceNumber      _last_durable_seq; // valid only when _is_catchup is true
+            bool                         _is_catchup;       // whether the db is in catch up mode
+            std::vector<checkpoint_info> _checkpoints;
+            ::dsn::utils::ex_lock_nr     _checkpoints_lock;
         };
 
         // --------- inline implementations -----------------

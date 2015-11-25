@@ -11,29 +11,32 @@
 namespace dsn {
     namespace apps {
         
-        static std::string chkpt_get_dir_name(rocksdb::SequenceNumber last_seq)
+        static std::string chkpt_get_dir_name(::dsn::replication::decree d, rocksdb::SequenceNumber seq)
         {
             char buffer[256];
-            sprintf(buffer, "checkpoint.%lld", last_seq);
+            sprintf(buffer, "checkpoint.%lld.%lld", d, seq);
             return std::string(buffer);
         }
 
-        static bool chkpt_init_from_dir(const char* name, rocksdb::SequenceNumber& last_seq)
+        static bool chkpt_init_from_dir(const char* name, ::dsn::replication::decree& d, rocksdb::SequenceNumber& seq)
         {
-            return 1 == sscanf(name, "checkpoint.%lld", &last_seq)
-                && std::string(name) == chkpt_get_dir_name(last_seq);
+            return 2 == sscanf(name, "checkpoint.%lld.%lld", &d, &seq)
+                && std::string(name) == chkpt_get_dir_name(d, seq);
         }
 
         rrdb_service_impl::rrdb_service_impl(::dsn::replication::replica* replica)
             : rrdb_service(replica), _max_checkpoint_count(3)
         {
             _is_open = false;
+            _last_seq = 0;
+            _last_durable_seq = 0;
+            _is_catchup = false;
 
             // disable write ahead logging as replication handles logging instead now
             _wt_opts.disableWAL = true;
         }
 
-        ::dsn::replication::decree rrdb_service_impl::parse_for_checkpoints()
+        rrdb_service_impl::checkpoint_info rrdb_service_impl::parse_for_checkpoints()
         {
             std::vector<std::string> dirs;
             utils::filesystem::get_subdirectories(data_dir(), dirs, false);
@@ -41,12 +44,12 @@ namespace dsn {
             _checkpoints.clear();
             for (auto& d : dirs)
             {
-                rocksdb::SequenceNumber ch;
+                checkpoint_info ci;
                 std::string d1 = d;
                 d1 = d1.substr(data_dir().length() + 1);
-                if (chkpt_init_from_dir(d1.c_str(), ch))
+                if (chkpt_init_from_dir(d1.c_str(), ci.d, ci.seq))
                 {
-                    _checkpoints.push_back(ch);
+                    _checkpoints.push_back(ci);
                 }
                 else if (d1.substr(0, 10) == std::string("checkpoint"))
                 {
@@ -57,84 +60,216 @@ namespace dsn {
                 }
             }
 
-            std::sort(_checkpoints.begin(), _checkpoints.end());
+            std::sort(_checkpoints.begin(), _checkpoints.end(),
+                [](const checkpoint_info& l, const checkpoint_info& r) 
+                { 
+                    return l.d < r.d || (l.d == r.d && l.seq < r.seq);
+                });
 
-            return _checkpoints.size() > 0 ? *_checkpoints.rbegin() : 0;
+            checkpoint_info dci;
+            dci.d = 0;
+            dci.seq = 0;
+            return _checkpoints.size() > 0 ? *_checkpoints.rbegin() : dci;
         }
 
-        void rrdb_service_impl::on_empty_write()
+        void rrdb_service_impl::write_batch()
         {
-            dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
+            auto opts = _wt_opts;
+            opts.given_sequence_number = _last_seq + 1;
+            auto status = _db->Write(opts, &_batch);
+            if (!status.ok())
+            {
+                derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
+                set_physical_error(status.code());
+            }
+
+            _last_seq += _batch.Count();
+            dassert(_last_seq == _db->GetLatestSequenceNumber(), 
+                "seq number mismatch: %lld vs %lld",
+                _last_seq,
+                _db->GetLatestSequenceNumber()
+                );
             
-            update_request update;
-            update.key = blob("empty-0xdeadbeef", 0, 16);
-            update.value = blob("empty", 0, 5);
-
-            ::dsn::rpc_replier<int> reply(nullptr);
-
-            on_put(update, reply);
+            for (auto& r : _batch_repliers)
+            {
+                r(status.code());
+            }
+            
+            _batch_repliers.clear();
+            _batch.Clear();
         }
 
         void rrdb_service_impl::on_put(const update_request& update, ::dsn::rpc_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
-            
-            rocksdb::WriteOptions opts = _wt_opts;
-            opts.given_sequence_number = last_committed_decree() + 1;
 
+            if (_is_catchup)
+            {
+                dassert(reply.is_empty(), "catchup only happens during initialization");
+                if (++_last_durable_seq == _last_seq)
+                    _is_catchup = false;
+                else
+                {
+                    dbg_dassert(_last_durable_seq < _last_seq, 
+                        "incorrect seq values in catch-up: %lld vs %lld",
+                        _last_durable_decree,
+                        _last_seq
+                        );
+                }
+
+                return;
+            }
+            
             rocksdb::Slice skey(update.key.data(), update.key.length());
             rocksdb::Slice svalue(update.value.data(), update.value.length());
-            rocksdb::Status status = _db->Put(opts, skey, svalue);
-            dassert(status.ok(), status.ToString().c_str());
-            dassert(_db->GetLatestSequenceNumber() == last_committed_decree() + 1,
-                "mismatched sequencenumber %lld vs %lld",
-                _db->GetLatestSequenceNumber(),
-                last_committed_decree() + 1
-                );
-            reply(status.code());
+            rocksdb::Status status;
 
-            ++_last_committed_decree;
+            switch (get_current_batch_state())
+            {
+            case BS_NOT_BATCH:
+            {
+                auto opts = _wt_opts;
+                opts.given_sequence_number = ++_last_seq;
+                status = _db->Put(opts, skey, svalue);
+                if (!status.ok())
+                {
+                    derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
+                    set_physical_error(status.code());
+                }
+                reply(status.code());
+                return;
+            }                
+
+            case BS_BATCH:
+                _batch.Put(skey, svalue);
+                _batch_repliers.push_back(reply);
+                return;
+
+            case BS_BATCH_LAST:
+                _batch.Put(skey, svalue);
+                _batch_repliers.push_back(reply);
+
+                write_batch();
+                return;
+
+            default:
+                dassert(false, "invalid batch state");
+            }
         }
 
         void rrdb_service_impl::on_remove(const ::dsn::blob& key, ::dsn::rpc_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
+
+            if (_is_catchup)
+            {
+                dassert(reply.is_empty(), "catchup only happens during initialization");
+                if (++_last_durable_seq == _last_seq)
+                    _is_catchup = false;
+                else
+                {
+                    dbg_dassert(_last_durable_seq < _last_seq,
+                        "incorrect seq values in catch-up: %lld vs %lld",
+                        _last_durable_decree,
+                        _last_seq
+                        );
+                }
+
+                return;
+            }
             
-            rocksdb::WriteOptions opts = _wt_opts;
-            opts.given_sequence_number = last_committed_decree() + 1;
-
             rocksdb::Slice skey(key.data(), key.length());
-            rocksdb::Status status = _db->Delete(opts, skey);
-            dassert(status.ok(), status.ToString().c_str());
-            dassert(_db->GetLatestSequenceNumber() == last_committed_decree() + 1, 
-                "mismatched sequencenumber %lld vs %lld",
-                _db->GetLatestSequenceNumber(),
-                last_committed_decree() + 1
-                );
-            reply(status.code());
+            rocksdb::Status status;
 
-            ++_last_committed_decree;
+            switch (get_current_batch_state())
+            {
+            case BS_NOT_BATCH:
+            {
+                auto opts = _wt_opts;
+                opts.given_sequence_number = ++_last_seq;
+                status = _db->Delete(opts, skey);
+                if (!status.ok())
+                {
+                    derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
+                    set_physical_error(status.code());
+                }
+                reply(status.code());
+                return;
+            }
+
+            case BS_BATCH:
+                _batch.Delete(skey);
+                _batch_repliers.push_back(reply);
+                return;
+
+            case BS_BATCH_LAST:
+                _batch.Delete(skey);
+                _batch_repliers.push_back(reply);
+
+                write_batch();
+                return;
+
+            default:
+                dassert(false, "invalid batch state");
+            }
         }
 
         void rrdb_service_impl::on_merge(const update_request& update, ::dsn::rpc_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
-            
-            rocksdb::WriteOptions opts = _wt_opts;
-            opts.given_sequence_number = last_committed_decree() + 1;
 
+            if (_is_catchup)
+            {
+                dassert(reply.is_empty(), "catchup only happens during initialization");
+                if (++_last_durable_seq == _last_seq)
+                    _is_catchup = false;
+                else
+                {
+                    dbg_dassert(_last_durable_seq < _last_seq,
+                        "incorrect seq values in catch-up: %lld vs %lld",
+                        _last_durable_decree,
+                        _last_seq
+                        );
+                }
+
+                return;
+            }
+            
             rocksdb::Slice skey(update.key.data(), update.key.length());
             rocksdb::Slice svalue(update.value.data(), update.value.length());
-            rocksdb::Status status = _db->Merge(opts, skey, svalue);
-            dassert(status.ok(), status.ToString().c_str());
-            dassert(_db->GetLatestSequenceNumber() == last_committed_decree() + 1,
-                "mismatched sequencenumber %lld vs %lld",
-                _db->GetLatestSequenceNumber(),
-                last_committed_decree() + 1
-                );
-            reply(status.code());
+            rocksdb::Status status;
 
-            ++_last_committed_decree;
+            switch (get_current_batch_state())
+            {
+            case BS_NOT_BATCH:
+            {
+                auto opts = _wt_opts;
+                opts.given_sequence_number = ++_last_seq;
+                status = _db->Merge(opts, skey, svalue);
+                if (!status.ok())
+                {
+                    derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
+                    set_physical_error(status.code());
+                }
+                reply(status.code());
+                return;
+            }
+
+            case BS_BATCH:
+                _batch.Merge(skey, svalue);
+                _batch_repliers.push_back(reply);
+                return;
+
+            case BS_BATCH_LAST:
+                _batch.Merge(skey, svalue);
+                _batch_repliers.push_back(reply);
+
+                write_batch();
+                return;
+
+            default:
+                dassert(false, "invalid batch state");
+            }
         }
 
         void rrdb_service_impl::on_get(const ::dsn::blob& key, ::dsn::rpc_replier<read_response>& reply)
@@ -164,15 +299,34 @@ namespace dsn {
                 dsn::utils::filesystem::remove_path(dir);
                 dsn::utils::filesystem::create_directory(dir);
             }
+            else
+            {
+                parse_for_checkpoints();
+                gc_checkpoints();
+            }
 
             auto status = rocksdb::DB::Open(opts, data_dir() + "/rdb", &_db);
             if (status.ok())
             {
                 _is_open = true;
-                _last_committed_decree = _db->GetLatestSequenceNumber();
-                _last_durable_decree = parse_for_checkpoints();
 
-                gc_checkpoints();
+                // load from checkpoints
+                _last_durable_decree = _checkpoints.size() > 0 ? _checkpoints.rbegin()->d : 0;
+                _last_durable_seq = _checkpoints.size() > 0 ? _checkpoints.rbegin()->seq : 0;
+                init_last_commit_decree(_last_durable_decree.load());
+             
+                // however,
+                // because rocksdb may persist the state on disk even without explicit flush(),
+                // it is possible that the _last_seq is larger than _last_durable_seq
+                // i.e., _last_durable_seq is not the ground-truth,
+                // in this case, the db enters a catch-up mode, where the write ops are ignored
+                // but only _last_durable_seq is increased until it equals to _last_seq.
+                // 
+                _last_seq = _db->GetLatestSequenceNumber();
+                if (_last_seq > _last_durable_seq)
+                {
+                    _is_catchup = true;
+                }
 
                 ddebug("open app %s: last_committed/durable decree = <%llu, %llu>",
                     data_dir().c_str(), last_committed_decree(), last_durable_decree());
@@ -216,9 +370,12 @@ namespace dsn {
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
-            if (_last_durable_decree == _last_committed_decree)
+            if (_last_durable_decree == last_committed_decree())
                 return 0;
 
+            if (_is_catchup)
+                return ERR_WRONG_TIMING;
+            
             rocksdb::Checkpoint* chkpt = nullptr;
             auto status = rocksdb::Checkpoint::Create(_db, &chkpt);
             if (!status.ok())
@@ -226,8 +383,16 @@ namespace dsn {
                 return status.code();
             }
 
-            rocksdb::SequenceNumber ch = last_committed_decree();
-            auto dir = chkpt_get_dir_name(ch);
+            checkpoint_info ci;
+            ci.d = last_committed_decree();
+            ci.seq = _last_seq;
+            dassert(ci.seq == _db->GetLatestSequenceNumber(),
+                "seq number mismatch: %lld vs %lld",
+                ci.seq,
+                _db->GetLatestSequenceNumber()
+                );
+
+            auto dir = chkpt_get_dir_name(ci.d, ci.seq);
 
             auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
             
@@ -241,7 +406,7 @@ namespace dsn {
 
                 {
                     utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
-                    _checkpoints.push_back(ch);
+                    _checkpoints.push_back(ci);
                 }                
 
                 gc_checkpoints();
@@ -263,7 +428,7 @@ namespace dsn {
         {
             while (true)
             {
-                uint64_t del_d = 0;
+                checkpoint_info del_d;
 
                 {
                     utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
@@ -273,7 +438,7 @@ namespace dsn {
                     _checkpoints.erase(_checkpoints.begin());
                 }
 
-                auto old_cpt = chkpt_get_dir_name(del_d);
+                auto old_cpt = chkpt_get_dir_name(del_d.d, del_d.seq);
                 auto old_cpt_dir = utils::filesystem::path_combine(data_dir(), old_cpt);
                 if (utils::filesystem::directory_exists(old_cpt_dir))
                 {
@@ -287,7 +452,12 @@ namespace dsn {
                         {
                             utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
                             _checkpoints.push_back(del_d);
-                            std::sort(_checkpoints.begin(), _checkpoints.end());
+                            std::sort(_checkpoints.begin(), _checkpoints.end(),
+                                [](const checkpoint_info& l, const checkpoint_info& r)
+                                {
+                                    return l.d < r.d || (l.d == r.d && l.seq < r.seq);
+                                }
+                                );
                         }
                         break;
                     }
@@ -312,16 +482,17 @@ namespace dsn {
             // simply copy all files
 
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
-            rocksdb::SequenceNumber ch = 0;
+            checkpoint_info ci;
+            ci.d = 0;
             {
                 utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
                 if (_checkpoints.size() > 0)
-                    ch = *_checkpoints.rbegin();
+                    ci = *_checkpoints.rbegin();
             }
 
-            if (ch > 0)
+            if (ci.d > 0)
             {
-                auto dir = chkpt_get_dir_name(ch);
+                auto dir = chkpt_get_dir_name(ci.d, ci.seq);
 
                 auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
                 auto succ = utils::filesystem::get_subfiles(chkpt_dir, state.files, true);
@@ -330,6 +501,11 @@ namespace dsn {
                     derror("list files in chkpoint dir %s failed", chkpt_dir.c_str());
                     return ERR_FILE_OPERATION_FAILED;
                 }
+
+                // attach checkpoint info
+                binary_writer writer;
+                writer.write_pod(ci);
+                state.meta.push_back(writer.get_buffer());
             }
             
             return 0;
@@ -370,10 +546,6 @@ namespace dsn {
                 return ERR_FILE_OPERATION_FAILED;
             }
 
-            /*for (auto &old_p : state.files)
-            {
-            }*/
-
             // reopen the db with the new checkpoint files
             if (state.files.size() > 0)
                 err = open(false);
@@ -387,7 +559,29 @@ namespace dsn {
             }
             else
             {
+                // load checkpoint meta info, and assign decrees
+                checkpoint_info ci;
+
+                dassert(state.meta.size() >= 1, "the learned state does not have checkpint meta info");
+                binary_reader reader(state.meta[0]);
+                reader.read_pod(ci);
+
+                dassert(ci.seq == _last_seq, 
+                    "seq numbers from loaded data and attached meta info do not match: %lld vs %lld",
+                    ci.seq,
+                    _last_seq
+                    );
+
+                init_last_commit_decree(ci.d);
+                _is_catchup = false;
+
+                // checkpoint immediately
                 flush(true);
+                dassert(last_durable_decree() == ci.d, 
+                    "durable and commit decree mismatch after checkpoint: %lld vs %lld, mostly because the checkpointing (flush) above failed",
+                    last_durable_decree(),
+                    ci.d
+                    );
             }
 
             return 0;

@@ -80,7 +80,6 @@ bool WriteBatch::Handler::Continue() {
 void WriteBatch::Clear() {
   rep_.clear();
   rep_.resize(kHeader);
-  use_shared_sequence_number_ = false;
 
   if (save_points_ != nullptr) {
     while (!save_points_->stack.empty()) {
@@ -217,9 +216,8 @@ SequenceNumber WriteBatchInternal::Sequence(const WriteBatch* b) {
   return SequenceNumber(DecodeFixed64(b->rep_.data()));
 }
 
-void WriteBatchInternal::SetSequence(WriteBatch* b, SequenceNumber seq, bool shared_seq) {
+void WriteBatchInternal::SetSequence(WriteBatch* b, SequenceNumber seq) {
   EncodeFixed64(&b->rep_[0], seq);
-  b->use_shared_sequence_number_ = shared_seq;
 }
 
 size_t WriteBatchInternal::GetFirstOffset(WriteBatch* b) { return kHeader; }
@@ -409,18 +407,16 @@ namespace {
 class MemTableInserter : public WriteBatch::Handler {
  public:
   SequenceNumber sequence_;
-  bool shared_sequence_;
   ColumnFamilyMemTables* cf_mems_;
   bool ignore_missing_column_families_;
   uint64_t log_number_;
   DBImpl* db_;
   const bool dont_filter_deletes_;
 
-  MemTableInserter(SequenceNumber sequence, bool shared_seq, ColumnFamilyMemTables* cf_mems,
+  MemTableInserter(SequenceNumber sequence, ColumnFamilyMemTables* cf_mems,
                    bool ignore_missing_column_families, uint64_t log_number,
                    DB* db, const bool dont_filter_deletes)
       : sequence_(sequence),
-        shared_sequence_(shared_seq),
         cf_mems_(cf_mems),
         ignore_missing_column_families_(ignore_missing_column_families),
         log_number_(log_number),
@@ -461,7 +457,7 @@ class MemTableInserter : public WriteBatch::Handler {
                        const Slice& value) override {
     Status seek_status;
     if (!SeekToColumnFamily(column_family_id, &seek_status)) {
-      if (!shared_sequence_) ++sequence_;
+      ++sequence_;
       return seek_status;
     }
     MemTable* mem = cf_mems_->GetMemTable();
@@ -508,7 +504,7 @@ class MemTableInserter : public WriteBatch::Handler {
     // Since all Puts are logged in trasaction logs (if enabled), always bump
     // sequence number. Even if the update eventually fails and does not result
     // in memtable add/update.
-    if (!shared_sequence_) sequence_++;
+    sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
   }
@@ -517,7 +513,7 @@ class MemTableInserter : public WriteBatch::Handler {
                           const Slice& key) override {
     Status seek_status;
     if (!SeekToColumnFamily(column_family_id, &seek_status)) {
-      if (!shared_sequence_) ++sequence_;
+      ++sequence_;
       return seek_status;
     }
     MemTable* mem = cf_mems_->GetMemTable();
@@ -538,7 +534,7 @@ class MemTableInserter : public WriteBatch::Handler {
       }
     }
     mem->Add(sequence_, kTypeDeletion, key, Slice());
-    if (!shared_sequence_) sequence_++;
+    sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
   }
@@ -547,7 +543,7 @@ class MemTableInserter : public WriteBatch::Handler {
                                 const Slice& key) override {
     Status seek_status;
     if (!SeekToColumnFamily(column_family_id, &seek_status)) {
-      if (!shared_sequence_) ++sequence_;
+      ++sequence_;
       return seek_status;
     }
     MemTable* mem = cf_mems_->GetMemTable();
@@ -568,7 +564,7 @@ class MemTableInserter : public WriteBatch::Handler {
       }
     }
     mem->Add(sequence_, kTypeSingleDeletion, key, Slice());
-    if (!shared_sequence_) sequence_++;
+    sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
   }
@@ -577,7 +573,7 @@ class MemTableInserter : public WriteBatch::Handler {
                          const Slice& value) override {
     Status seek_status;
     if (!SeekToColumnFamily(column_family_id, &seek_status)) {
-      if (!shared_sequence_) ++sequence_;
+      ++sequence_;
       return seek_status;
     }
     MemTable* mem = cf_mems_->GetMemTable();
@@ -648,7 +644,7 @@ class MemTableInserter : public WriteBatch::Handler {
       mem->Add(sequence_, kTypeMerge, key, value);
     }
 
-    if (!shared_sequence_) sequence_++;
+    sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
   }
@@ -665,8 +661,7 @@ Status WriteBatchInternal::InsertInto(const WriteBatch* b,
                                       bool ignore_missing_column_families,
                                       uint64_t log_number, DB* db,
                                       const bool dont_filter_deletes) {
-  MemTableInserter inserter(WriteBatchInternal::Sequence(b),
-                            b->use_shared_sequence_number_, memtables,
+  MemTableInserter inserter(WriteBatchInternal::Sequence(b), memtables,
                             ignore_missing_column_families, log_number, db,
                             dont_filter_deletes);
   return b->Iterate(&inserter);
