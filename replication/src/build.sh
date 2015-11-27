@@ -28,10 +28,14 @@ fi
 cd $CUR_DIR
 
 # clear if need
-if [ $# -eq 1 -a "$1" == "true" ]
+if [ -d "builder" -a $# -eq 1 -a "$1" == "true" ]
 then
     echo "Clear builder..."
     rm -rf builder
+fi
+
+if [ ! -d "builder" ]
+then
     mkdir -p builder
     cd builder
     DSN_ROOT=$DSN_ROOT cmake .. -DCMAKE_INSTALL_PREFIX=`pwd`/output $CMAKE_OPTIONS
