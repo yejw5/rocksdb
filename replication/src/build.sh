@@ -17,7 +17,7 @@ echo "DSN_ROOT=$DSN_ROOT"
 # build librocksdb.a
 CUR_DIR=`pwd`
 cd ../..
-make dbg -j8
+make static_lib_dbg -j8
 if [ $? -ne 0 ]
 then
     echo "ERROR: build librocksdb.a failed"
