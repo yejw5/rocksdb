@@ -39,5 +39,14 @@ set(MY_BINPLACES
     "${CMAKE_CURRENT_SOURCE_DIR}/vconfig.ini" "${CMAKE_CURRENT_SOURCE_DIR}/vtest.cmd"
     )
 
+# Copy libdsn.core.so and disable rpath, to make rrdb use dsn shared lib in local directory.
+if (UNIX)
+    SET(CMAKE_SKIP_RPATH TRUE)
+    set(MY_BINPLACES ${MY_BINPLACES}
+        "${DSN_ROOT}/lib/libdsn.core.so"
+        "${CMAKE_CURRENT_SOURCE_DIR}/run.sh"
+        )
+endif()
+
 dsn_common_setup()
 dsn_add_executable()
