@@ -9,7 +9,7 @@ class rrdb_client
 {
 public:
     rrdb_client(
-        const std::vector<::dsn::rpc_address>& meta_servers,
+        const std::vector< ::dsn::rpc_address>& meta_servers,
         const char* replicate_app_name)
         : ::dsn::replication::replication_app_client_base(meta_servers, replicate_app_name)
     {
@@ -19,8 +19,8 @@ public:
     
     // from requests to partition index
     // PLEASE DO RE-DEFINE THEM IN A SUB CLASS!!!
-    virtual int get_partition_index(const update_request& key) { return 0;};
-    virtual int get_partition_index(const ::dsn::blob& key) { return 0;};
+    virtual int get_partition_index(const update_request& key) { return 0; };
+    virtual int get_partition_index(const ::dsn::blob& key) { return 0; };
 
     // ---------- call RPC_RRDB_RRDB_PUT ------------
     // - synchronous 
@@ -119,7 +119,7 @@ public:
         int timeout_milliseconds = 0 
         )
     {
-        auto resp_task = ::dsn::replication::replication_app_client_base::write<::dsn::blob, int>(
+        auto resp_task = ::dsn::replication::replication_app_client_base::write< ::dsn::blob, int>(
             get_partition_index(key),
             RPC_RRDB_RRDB_REMOVE,
             key,
@@ -169,9 +169,9 @@ public:
         }
     }
     
-    // - asynchronous with on-heap std::shared_ptr<::dsn::blob> and std::shared_ptr<int> 
+    // - asynchronous with on-heap std::shared_ptr< ::dsn::blob> and std::shared_ptr<int> 
     ::dsn::task_ptr begin_remove2(
-        std::shared_ptr<::dsn::blob>& key,         
+        std::shared_ptr< ::dsn::blob>& key,         
         int timeout_milliseconds = 0, 
         int reply_hash = 0 
         )
@@ -189,7 +189,7 @@ public:
 
     virtual void end_remove2(
         ::dsn::error_code err, 
-        std::shared_ptr<::dsn::blob>& key, 
+        std::shared_ptr< ::dsn::blob>& key, 
         std::shared_ptr<int>& resp)
     {
         if (err != ::dsn::ERR_OK) std::cout << "reply RPC_RRDB_RRDB_REMOVE err : " << err.to_string() << std::endl;
@@ -298,7 +298,7 @@ public:
         ::dsn::replication::read_semantic_t read_semantic = ::dsn::replication::read_semantic_t::ReadLastUpdate 
         )
     {
-        auto resp_task = ::dsn::replication::replication_app_client_base::read<::dsn::blob, read_response>(
+        auto resp_task = ::dsn::replication::replication_app_client_base::read< ::dsn::blob, read_response>(
             get_partition_index(key),
             RPC_RRDB_RRDB_GET,
             key,
@@ -351,9 +351,9 @@ public:
         }
     }
     
-    // - asynchronous with on-heap std::shared_ptr<::dsn::blob> and std::shared_ptr<read_response> 
+    // - asynchronous with on-heap std::shared_ptr< ::dsn::blob> and std::shared_ptr<read_response> 
     ::dsn::task_ptr begin_get2(
-        std::shared_ptr<::dsn::blob>& key,         
+        std::shared_ptr< ::dsn::blob>& key,         
         int timeout_milliseconds = 0, 
         int reply_hash = 0, 
         ::dsn::replication::read_semantic_t read_semantic = ::dsn::replication::read_semantic_t::ReadLastUpdate 
@@ -373,7 +373,7 @@ public:
 
     virtual void end_get2(
         ::dsn::error_code err, 
-        std::shared_ptr<::dsn::blob>& key, 
+        std::shared_ptr< ::dsn::blob>& key, 
         std::shared_ptr<read_response>& resp)
     {
         if (err != ::dsn::ERR_OK) std::cout << "reply RPC_RRDB_RRDB_GET err : " << err.to_string() << std::endl;
