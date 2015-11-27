@@ -1,6 +1,7 @@
 # pragma once
+# include <dsn/dist/replication.h>
 # include "rrdb.code.definition.h"
-# include "replication_app_client_base.h"
+# include <iostream>
 
 namespace dsn { namespace apps { 
 class rrdb_client 
