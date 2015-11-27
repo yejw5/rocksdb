@@ -1,6 +1,7 @@
 # pragma once
+# include <dsn/dist/replication.h>
 # include "rrdb.code.definition.h"
-# include "replication_app_client_base.h"
+# include <iostream>
 
 namespace dsn { namespace apps { 
 class rrdb_client 
@@ -113,7 +114,7 @@ public:
 		int timeout_milliseconds = 0
 		)
 	{
-		auto resp_task = ::dsn::replication::replication_app_client_base::read<::dsn::blob, int>(
+		auto resp_task = ::dsn::replication::replication_app_client_base::read< ::dsn::blob, int>(
             get_partition_index(key),
             RPC_RRDB_RRDB_REMOVE,
             key,
@@ -158,9 +159,9 @@ public:
 		}
 	}
 	
-	// - asynchronous with on-heap std::shared_ptr<::dsn::blob> and std::shared_ptr<int> 
+	// - asynchronous with on-heap std::shared_ptr< ::dsn::blob> and std::shared_ptr<int> 
 	::dsn::rpc_response_task_ptr begin_remove2(
-		std::shared_ptr<::dsn::blob>& key, 		
+		std::shared_ptr< ::dsn::blob>& key, 		
 		int timeout_milliseconds = 0, 
 		int reply_hash = 0
 		)
@@ -178,7 +179,7 @@ public:
 
 	virtual void end_remove2(
 		::dsn::error_code err, 
-		std::shared_ptr<::dsn::blob>& key, 
+		std::shared_ptr< ::dsn::blob>& key, 
 		std::shared_ptr<int>& resp)
 	{
 		if (err != ::dsn::ERR_OK) std::cout << "reply RPC_RRDB_RRDB_REMOVE err : " << err.to_string() << std::endl;
@@ -281,7 +282,7 @@ public:
 		int timeout_milliseconds = 0
 		)
 	{
-		auto resp_task = ::dsn::replication::replication_app_client_base::read<::dsn::blob, read_response>(
+		auto resp_task = ::dsn::replication::replication_app_client_base::read< ::dsn::blob, read_response>(
             get_partition_index(key),
             RPC_RRDB_RRDB_GET,
             key,
@@ -326,9 +327,9 @@ public:
 		}
 	}
 	
-	// - asynchronous with on-heap std::shared_ptr<::dsn::blob> and std::shared_ptr<read_response> 
+	// - asynchronous with on-heap std::shared_ptr< ::dsn::blob> and std::shared_ptr<read_response> 
 	::dsn::rpc_response_task_ptr begin_get2(
-		std::shared_ptr<::dsn::blob>& key, 		
+		std::shared_ptr< ::dsn::blob>& key, 		
 		int timeout_milliseconds = 0, 
 		int reply_hash = 0
 		)
@@ -346,7 +347,7 @@ public:
 
 	virtual void end_get2(
 		::dsn::error_code err, 
-		std::shared_ptr<::dsn::blob>& key, 
+		std::shared_ptr< ::dsn::blob>& key, 
 		std::shared_ptr<read_response>& resp)
 	{
 		if (err != ::dsn::ERR_OK) std::cout << "reply RPC_RRDB_RRDB_GET err : " << err.to_string() << std::endl;

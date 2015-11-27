@@ -1,5 +1,6 @@
 # include "rrdb.server.impl.h"
 # include <algorithm>
+# include <cinttypes>
 # include <dsn/cpp/utils.h>
 # include <rocksdb/utilities/checkpoint.h>
 
@@ -14,13 +15,13 @@ namespace dsn {
         static std::string chkpt_get_dir_name(::dsn::replication::decree d, rocksdb::SequenceNumber seq)
         {
             char buffer[256];
-            sprintf(buffer, "checkpoint.%lld.%lld", d, seq);
+            sprintf(buffer, "checkpoint.%" PRId64 ".%" PRIu64, d, seq);
             return std::string(buffer);
         }
 
         static bool chkpt_init_from_dir(const char* name, ::dsn::replication::decree& d, rocksdb::SequenceNumber& seq)
         {
-            return 2 == sscanf(name, "checkpoint.%lld.%lld", &d, &seq)
+            return 2 == sscanf(name, "checkpoint.%" PRId64 ".%" PRIu64, &d, &seq)
                 && std::string(name) == chkpt_get_dir_name(d, seq);
         }
 
@@ -85,7 +86,7 @@ namespace dsn {
 
             _last_seq += _batch.Count();
             dassert(_last_seq == _db->GetLatestSequenceNumber(), 
-                "seq number mismatch: %lld vs %lld",
+                "seq number mismatch: %" PRIu64 " vs %" PRIu64,
                 _last_seq,
                 _db->GetLatestSequenceNumber()
                 );
@@ -111,8 +112,8 @@ namespace dsn {
                 else
                 {
                     dbg_dassert(_last_durable_seq < _last_seq, 
-                        "incorrect seq values in catch-up: %lld vs %lld",
-                        _last_durable_decree,
+                        "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64,
+                        _last_durable_seq,
                         _last_seq
                         );
                 }
@@ -169,8 +170,8 @@ namespace dsn {
                 else
                 {
                     dbg_dassert(_last_durable_seq < _last_seq,
-                        "incorrect seq values in catch-up: %lld vs %lld",
-                        _last_durable_decree,
+                        "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64,
+                        _last_durable_seq,
                         _last_seq
                         );
                 }
@@ -226,8 +227,8 @@ namespace dsn {
                 else
                 {
                     dbg_dassert(_last_durable_seq < _last_seq,
-                        "incorrect seq values in catch-up: %lld vs %lld",
-                        _last_durable_decree,
+                        "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64,
+                        _last_durable_seq,
                         _last_seq
                         );
                 }
@@ -387,7 +388,7 @@ namespace dsn {
             ci.d = last_committed_decree();
             ci.seq = _last_seq;
             dassert(ci.seq == _db->GetLatestSequenceNumber(),
-                "seq number mismatch: %lld vs %lld",
+                "seq number mismatch: %" PRIu64 " vs %" PRIu64,
                 ci.seq,
                 _db->GetLatestSequenceNumber()
                 );
@@ -567,7 +568,7 @@ namespace dsn {
                 reader.read_pod(ci);
 
                 dassert(ci.seq == _last_seq, 
-                    "seq numbers from loaded data and attached meta info do not match: %lld vs %lld",
+                    "seq numbers from loaded data and attached meta info do not match: %" PRIu64 " vs %" PRIu64,
                     ci.seq,
                     _last_seq
                     );
@@ -578,7 +579,7 @@ namespace dsn {
                 // checkpoint immediately
                 flush(true);
                 dassert(last_durable_decree() == ci.d, 
-                    "durable and commit decree mismatch after checkpoint: %lld vs %lld, mostly because the checkpointing (flush) above failed",
+                    "durable and commit decree mismatch after checkpoint: %" PRId64 " vs %" PRId64 ", mostly because the checkpointing (flush) above failed",
                     last_durable_decree(),
                     ci.d
                     );
