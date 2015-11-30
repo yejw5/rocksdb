@@ -7,7 +7,7 @@ endif()
 
 include("${DSN_ROOT}/bin/dsn.cmake")
 
-set(DSN_BUILD_RUNTIME 0)
+set(DSN_BUILD_RUNTIME FALSE)
 
 set(MY_PROJ_NAME "rrdb")
 project(${MY_PROJ_NAME} C CXX)
@@ -31,13 +31,20 @@ else()
 	set(MY_PROJ_LIBS rocksdblib ${MY_PROJ_LIBS} rpcrt4)
 endif()
 
-set(MY_PROJ_LIB_PATH "../../")
+set(MY_PROJ_LIB_PATH "../..")
 
 # Extra files that will be installed
 set(MY_BINPLACES 
     "${CMAKE_CURRENT_SOURCE_DIR}/config.ini" "${CMAKE_CURRENT_SOURCE_DIR}/test.cmd"
     "${CMAKE_CURRENT_SOURCE_DIR}/vconfig.ini" "${CMAKE_CURRENT_SOURCE_DIR}/vtest.cmd"
     )
+
+# Copy libdsn.core.so and set rpath, to make rrdb use dsn shared lib in local directory.
+if (UNIX)
+    SET(CMAKE_INSTALL_RPATH ".")
+    SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so")
+endif()
 
 dsn_common_setup()
 dsn_add_executable()

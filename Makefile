@@ -39,6 +39,10 @@ ifeq ($(MAKECMDGOALS),dbg)
 	DEBUG_LEVEL=2
 endif
 
+ifeq ($(MAKECMDGOALS),static_lib_dbg)
+	DEBUG_LEVEL=2
+endif
+
 ifeq ($(MAKECMDGOALS),shared_lib)
 	DEBUG_LEVEL=0
 endif
@@ -385,6 +389,8 @@ endif  # PLATFORM_SHARED_EXT
 all: $(LIBRARY) $(BENCHMARKS) tools $(TESTS)
 
 static_lib: $(LIBRARY)
+
+static_lib_dbg: $(LIBRARY)
 
 shared_lib: $(SHARED)
 

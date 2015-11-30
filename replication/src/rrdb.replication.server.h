@@ -1,5 +1,5 @@
 # pragma once
-# include "replication_app_base.h"
+# include <dsn/dist/replication.h>
 # include "rrdb.code.definition.h"
 # include <iostream>
 
