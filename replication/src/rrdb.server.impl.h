@@ -18,12 +18,12 @@ namespace dsn {
 
             virtual int  open(bool create_new);
             virtual int  close(bool clear_state);
-            virtual int  flush(bool wait);
+            virtual int  checkpoint();
+            virtual int  checkpoint_async();
             
-            virtual void prepare_learning_request(/*out*/ blob& learn_req);
-            virtual int  get_learn_state(::dsn::replication::decree start,
+            virtual int  get_checkpoint(::dsn::replication::decree start,
                     const blob& learn_req, /*out*/ ::dsn::replication::learn_state& state);
-            virtual int  apply_learn_state(::dsn::replication::learn_state& state);
+            virtual int  apply_checkpoint(::dsn::replication::learn_state& state, ::dsn::replication::chkpt_apply_mode mode);
             virtual ::dsn::replication::decree last_durable_decree() const;
 
         private:

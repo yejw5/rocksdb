@@ -1,6 +1,5 @@
 # include "rrdb.server.impl.h"
 # include <algorithm>
-# include <cinttypes>
 # include <dsn/cpp/utils.h>
 # include <rocksdb/utilities/checkpoint.h>
 
@@ -15,13 +14,13 @@ namespace dsn {
         static std::string chkpt_get_dir_name(::dsn::replication::decree d, rocksdb::SequenceNumber seq)
         {
             char buffer[256];
-            sprintf(buffer, "checkpoint.%" PRId64 ".%" PRIu64, d, seq);
+            sprintf(buffer, "checkpoint.%" PRId64 ".%" PRId64 "", d, seq);
             return std::string(buffer);
         }
 
         static bool chkpt_init_from_dir(const char* name, ::dsn::replication::decree& d, rocksdb::SequenceNumber& seq)
         {
-            return 2 == sscanf(name, "checkpoint.%" PRId64 ".%" PRIu64, &d, &seq)
+            return 2 == sscanf(name, "checkpoint.%" PRId64 ".%" PRId64 "", &d, &seq)
                 && std::string(name) == chkpt_get_dir_name(d, seq);
         }
 
@@ -86,7 +85,7 @@ namespace dsn {
 
             _last_seq += _batch.Count();
             dassert(_last_seq == _db->GetLatestSequenceNumber(), 
-                "seq number mismatch: %" PRIu64 " vs %" PRIu64,
+                "seq number mismatch: %" PRId64 " vs %" PRId64 "",
                 _last_seq,
                 _db->GetLatestSequenceNumber()
                 );
@@ -112,8 +111,8 @@ namespace dsn {
                 else
                 {
                     dbg_dassert(_last_durable_seq < _last_seq, 
-                        "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64,
-                        _last_durable_seq,
+                        "incorrect seq values in catch-up: %" PRId64 " vs %" PRId64 "",
+                        _last_durable_decree,
                         _last_seq
                         );
                 }
@@ -170,8 +169,8 @@ namespace dsn {
                 else
                 {
                     dbg_dassert(_last_durable_seq < _last_seq,
-                        "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64,
-                        _last_durable_seq,
+                        "incorrect seq values in catch-up: %" PRId64 " vs %" PRId64 "",
+                        _last_durable_decree,
                         _last_seq
                         );
                 }
@@ -227,8 +226,8 @@ namespace dsn {
                 else
                 {
                     dbg_dassert(_last_durable_seq < _last_seq,
-                        "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64,
-                        _last_durable_seq,
+                        "incorrect seq values in catch-up: %" PRId64 " vs %" PRId64 "",
+                        _last_durable_decree,
                         _last_seq
                         );
                 }
@@ -329,7 +328,7 @@ namespace dsn {
                     _is_catchup = true;
                 }
 
-                ddebug("open app %s: last_committed/durable decree = <%llu, %llu>",
+                ddebug("open app %s: last_committed/durable decree = <%" PRIu64 ", %" PRIu64 ">",
                     data_dir().c_str(), last_committed_decree(), last_durable_decree());
             }
             else
@@ -367,7 +366,12 @@ namespace dsn {
         }
 
         // flush is always done in the same single thread, so
-        int  rrdb_service_impl::flush(bool wait)
+        int  rrdb_service_impl::checkpoint()
+        {
+            return checkpoint_async();
+        }
+
+        int  rrdb_service_impl::checkpoint_async()
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
@@ -388,7 +392,7 @@ namespace dsn {
             ci.d = last_committed_decree();
             ci.seq = _last_seq;
             dassert(ci.seq == _db->GetLatestSequenceNumber(),
-                "seq number mismatch: %" PRIu64 " vs %" PRIu64,
+                "seq number mismatch: %" PRId64 " vs %" PRId64 "",
                 ci.seq,
                 _db->GetLatestSequenceNumber()
                 );
@@ -469,13 +473,8 @@ namespace dsn {
                 }
             }
         }
-
-        void rrdb_service_impl::prepare_learning_request(/*out*/ blob& learn_req)
-        {
-            // nothing to do
-        }
-
-        int  rrdb_service_impl::get_learn_state(
+        
+        int  rrdb_service_impl::get_checkpoint(
             ::dsn::replication::decree start, 
             const blob& learn_req, 
             /*out*/ ::dsn::replication::learn_state& state)
@@ -507,14 +506,47 @@ namespace dsn {
                 binary_writer writer;
                 writer.write_pod(ci);
                 state.meta.push_back(writer.get_buffer());
+
+                state.from_decree_excluded = 0;
+                state.to_decree_included = ci.d;
             }
             
             return 0;
         }
 
-        int  rrdb_service_impl::apply_learn_state(::dsn::replication::learn_state& state)
+        int  rrdb_service_impl::apply_checkpoint(::dsn::replication::learn_state& state, ::dsn::replication::chkpt_apply_mode mode)
         {
-            int err = 0;
+            int err;
+            checkpoint_info ci;
+
+            dassert(state.meta.size() >= 1, "the learned state does not have checkpint meta info");
+            binary_reader reader(state.meta[0]);
+            reader.read_pod(ci);
+
+            if (mode == dsn::replication::CHKPT_COPY)
+            {
+                dassert(state.to_decree_included > last_durable_decree()
+                    && ci.d == state.to_decree_included,
+                    "");
+
+                auto dir = chkpt_get_dir_name(ci.d, ci.seq);
+                auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
+                auto old_dir = utils::filesystem::remove_file_name(state.files[0]);
+                auto succ = utils::filesystem::rename_path(old_dir, chkpt_dir);
+
+                if (succ)
+                {
+                    utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                    _checkpoints.push_back(ci);
+                    _last_durable_decree = ci.d;
+                    err = ERR_OK;
+                }
+                else
+                {
+                    err = ERR_FILE_OPERATION_FAILED;
+                }                
+                return err;
+            }
 
             if (_is_open)
             {
@@ -561,14 +593,8 @@ namespace dsn {
             else
             {
                 // load checkpoint meta info, and assign decrees
-                checkpoint_info ci;
-
-                dassert(state.meta.size() >= 1, "the learned state does not have checkpint meta info");
-                binary_reader reader(state.meta[0]);
-                reader.read_pod(ci);
-
                 dassert(ci.seq == _last_seq, 
-                    "seq numbers from loaded data and attached meta info do not match: %" PRIu64 " vs %" PRIu64,
+                    "seq numbers from loaded data and attached meta info do not match: %" PRId64 " vs %" PRId64 "",
                     ci.seq,
                     _last_seq
                     );
@@ -577,8 +603,14 @@ namespace dsn {
                 _is_catchup = false;
 
                 // checkpoint immediately
-                flush(true);
-                dassert(last_durable_decree() == ci.d, 
+                int r = checkpoint();
+                if (r != 0)
+                {
+                    derror("rocksdb create checkpoint failed, err = %d", r);
+                    return r;
+                }
+
+                dassert(last_durable_decree() == ci.d,
                     "durable and commit decree mismatch after checkpoint: %" PRId64 " vs %" PRId64 ", mostly because the checkpointing (flush) above failed",
                     last_durable_decree(),
                     ci.d
