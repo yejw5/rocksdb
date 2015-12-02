@@ -14,29 +14,29 @@ namespace dsn {
         static std::string chkpt_get_dir_name(::dsn::replication::decree d, rocksdb::SequenceNumber seq)
         {
             char buffer[256];
-            sprintf(buffer, "checkpoint.%" PRId64 ".%" PRId64 "", d, seq);
+            sprintf(buffer, "checkpoint.%" PRId64 ".%" PRIu64 "", d, seq);
             return std::string(buffer);
         }
 
         static bool chkpt_init_from_dir(const char* name, ::dsn::replication::decree& d, rocksdb::SequenceNumber& seq)
         {
-            return 2 == sscanf(name, "checkpoint.%" PRId64 ".%" PRId64 "", &d, &seq)
+            return 2 == sscanf(name, "checkpoint.%" PRId64 ".%" PRIu64 "", &d, &seq)
                 && std::string(name) == chkpt_get_dir_name(d, seq);
         }
 
         rrdb_service_impl::rrdb_service_impl(::dsn::replication::replica* replica)
-            : rrdb_service(replica), _max_checkpoint_count(3)
+            : rrdb_service(replica), _max_checkpoint_count(3), _write_buffer_size(40*1024)
         {
             _is_open = false;
             _last_seq = 0;
-            _last_durable_seq = 0;
             _is_catchup = false;
+            _last_durable_seq = 0;
 
             // disable write ahead logging as replication handles logging instead now
             _wt_opts.disableWAL = true;
         }
 
-        rrdb_service_impl::checkpoint_info rrdb_service_impl::parse_for_checkpoints()
+        rrdb_service_impl::checkpoint_info rrdb_service_impl::parse_checkpoints()
         {
             std::vector<std::string> dirs;
             utils::filesystem::get_subdirectories(data_dir(), dirs, false);
@@ -45,31 +45,63 @@ namespace dsn {
             for (auto& d : dirs)
             {
                 checkpoint_info ci;
-                std::string d1 = d;
-                d1 = d1.substr(data_dir().length() + 1);
+                std::string d1 = d.substr(data_dir().length() + 1);
                 if (chkpt_init_from_dir(d1.c_str(), ci.d, ci.seq))
                 {
                     _checkpoints.push_back(ci);
                 }
-                else if (d1.substr(0, 10) == std::string("checkpoint"))
+                else if (d1.find("checkpoint") != std::string::npos)
                 {
-                    derror("invalid checkpoint directory %s, remove ...",
+                    dwarn("invalid checkpoint directory %s, remove ...",
                         d.c_str()
                         );
                     utils::filesystem::remove_path(d);
                 }
             }
 
-            std::sort(_checkpoints.begin(), _checkpoints.end(),
-                [](const checkpoint_info& l, const checkpoint_info& r) 
-                { 
-                    return l.d < r.d || (l.d == r.d && l.seq < r.seq);
-                });
+            std::sort(_checkpoints.begin(), _checkpoints.end());
 
-            checkpoint_info dci;
-            dci.d = 0;
-            dci.seq = 0;
-            return _checkpoints.size() > 0 ? *_checkpoints.rbegin() : dci;
+            return _checkpoints.size() > 0 ? *_checkpoints.rbegin() : checkpoint_info();
+        }
+
+        void rrdb_service_impl::gc_checkpoints()
+        {
+            while (true)
+            {
+                checkpoint_info del_d;
+
+                {
+                    utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                    if (_checkpoints.size() <= _max_checkpoint_count)
+                        break;
+                    del_d = *_checkpoints.begin();
+                    _checkpoints.erase(_checkpoints.begin());
+                }
+
+                auto old_cpt = chkpt_get_dir_name(del_d.d, del_d.seq);
+                auto old_cpt_dir = utils::filesystem::path_combine(data_dir(), old_cpt);
+                if (utils::filesystem::directory_exists(old_cpt_dir))
+                {
+                    if (utils::filesystem::remove_path(old_cpt_dir))
+                    {
+                        ddebug("%s: checkpoint %s removed by garbage collection", data_dir().c_str(), old_cpt_dir.c_str());
+                    }
+                    else
+                    {
+                        derror("%s: remove checkpoint %s failed by garbage collection", data_dir().c_str(), old_cpt_dir.c_str());
+                        {
+                            utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                            _checkpoints.push_back(del_d);
+                            std::sort(_checkpoints.begin(), _checkpoints.end());
+                        }
+                        break;
+                    }
+                }
+                else
+                {
+                    dwarn("%s: checkpoint %s does not exist, garbage collection ignored", data_dir().c_str(), old_cpt_dir.c_str());
+                }
+            }
         }
 
         void rrdb_service_impl::write_batch()
@@ -77,18 +109,16 @@ namespace dsn {
             auto opts = _wt_opts;
             opts.given_sequence_number = _last_seq + 1;
             auto status = _db->Write(opts, &_batch);
-            if (!status.ok())
+            if (status.ok())
+            {
+                _last_seq += _batch.Count();
+                check_last_seq();
+            }
+            else
             {
                 derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
                 set_physical_error(status.code());
             }
-
-            _last_seq += _batch.Count();
-            dassert(_last_seq == _db->GetLatestSequenceNumber(), 
-                "seq number mismatch: %" PRId64 " vs %" PRId64 "",
-                _last_seq,
-                _db->GetLatestSequenceNumber()
-                );
             
             for (auto& r : _batch_repliers)
             {
@@ -99,6 +129,29 @@ namespace dsn {
             _batch.Clear();
         }
 
+        void rrdb_service_impl::check_last_seq()
+        {
+            dassert(_last_seq == _db->GetLatestSequenceNumber(),
+                "_last_seq mismatch DB::GetLatestSequenceNumber(): %" PRIu64 " vs %" PRIu64 "",
+                _last_seq,
+                _db->GetLatestSequenceNumber()
+                );
+        }
+
+        void rrdb_service_impl::catchup_one()
+        {
+            dbg_dassert(_last_durable_seq < _last_seq,
+                "incorrect seq values in catch-up: %" PRIu64 " vs %" PRIu64 "",
+                _last_durable_seq,
+                _last_seq
+                );
+            if (++_last_durable_seq == _last_seq)
+            {
+                _is_catchup = false;
+                ddebug("catch up done, last_seq = %" PRIu64 "", _last_seq);
+            }
+        }
+
         void rrdb_service_impl::on_put(const update_request& update, ::dsn::rpc_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
@@ -106,17 +159,7 @@ namespace dsn {
             if (_is_catchup)
             {
                 dassert(reply.is_empty(), "catchup only happens during initialization");
-                if (++_last_durable_seq == _last_seq)
-                    _is_catchup = false;
-                else
-                {
-                    dbg_dassert(_last_durable_seq < _last_seq, 
-                        "incorrect seq values in catch-up: %" PRId64 " vs %" PRId64 "",
-                        _last_durable_decree,
-                        _last_seq
-                        );
-                }
-
+                catchup_one();
                 return;
             }
             
@@ -129,29 +172,34 @@ namespace dsn {
             case BS_NOT_BATCH:
             {
                 auto opts = _wt_opts;
-                opts.given_sequence_number = ++_last_seq;
+                opts.given_sequence_number = _last_seq + 1;
                 status = _db->Put(opts, skey, svalue);
-                if (!status.ok())
+                if (status.ok())
+                {
+                    _last_seq += 1;
+                    check_last_seq();
+                }
+                else
                 {
                     derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
                     set_physical_error(status.code());
                 }
                 reply(status.code());
-                return;
+                break;
             }                
-
             case BS_BATCH:
+            {
                 _batch.Put(skey, svalue);
                 _batch_repliers.push_back(reply);
-                return;
-
+                break;
+            }
             case BS_BATCH_LAST:
+            {
                 _batch.Put(skey, svalue);
                 _batch_repliers.push_back(reply);
-
                 write_batch();
-                return;
-
+                break;
+            }
             default:
                 dassert(false, "invalid batch state");
             }
@@ -164,17 +212,7 @@ namespace dsn {
             if (_is_catchup)
             {
                 dassert(reply.is_empty(), "catchup only happens during initialization");
-                if (++_last_durable_seq == _last_seq)
-                    _is_catchup = false;
-                else
-                {
-                    dbg_dassert(_last_durable_seq < _last_seq,
-                        "incorrect seq values in catch-up: %" PRId64 " vs %" PRId64 "",
-                        _last_durable_decree,
-                        _last_seq
-                        );
-                }
-
+                catchup_one();
                 return;
             }
             
@@ -186,29 +224,34 @@ namespace dsn {
             case BS_NOT_BATCH:
             {
                 auto opts = _wt_opts;
-                opts.given_sequence_number = ++_last_seq;
+                opts.given_sequence_number = _last_seq + 1;
                 status = _db->Delete(opts, skey);
-                if (!status.ok())
+                if (status.ok())
+                {
+                    _last_seq += 1;
+                    check_last_seq();
+                }
+                else
                 {
                     derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
                     set_physical_error(status.code());
                 }
                 reply(status.code());
-                return;
+                break;
             }
-
             case BS_BATCH:
+            {
                 _batch.Delete(skey);
                 _batch_repliers.push_back(reply);
-                return;
-
+                break;
+            }
             case BS_BATCH_LAST:
+            {
                 _batch.Delete(skey);
                 _batch_repliers.push_back(reply);
-
                 write_batch();
-                return;
-
+                break;
+            }
             default:
                 dassert(false, "invalid batch state");
             }
@@ -221,17 +264,7 @@ namespace dsn {
             if (_is_catchup)
             {
                 dassert(reply.is_empty(), "catchup only happens during initialization");
-                if (++_last_durable_seq == _last_seq)
-                    _is_catchup = false;
-                else
-                {
-                    dbg_dassert(_last_durable_seq < _last_seq,
-                        "incorrect seq values in catch-up: %" PRId64 " vs %" PRId64 "",
-                        _last_durable_decree,
-                        _last_seq
-                        );
-                }
-
+                catchup_one();
                 return;
             }
             
@@ -244,29 +277,34 @@ namespace dsn {
             case BS_NOT_BATCH:
             {
                 auto opts = _wt_opts;
-                opts.given_sequence_number = ++_last_seq;
+                opts.given_sequence_number = _last_seq + 1;
                 status = _db->Merge(opts, skey, svalue);
-                if (!status.ok())
+                if (status.ok())
+                {
+                    _last_seq += 1;
+                    check_last_seq();
+                }
+                else
                 {
                     derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
                     set_physical_error(status.code());
                 }
                 reply(status.code());
-                return;
+                break;
             }
-
             case BS_BATCH:
+            {
                 _batch.Merge(skey, svalue);
                 _batch_repliers.push_back(reply);
-                return;
-
+                break;
+            }
             case BS_BATCH_LAST:
+            {
                 _batch.Merge(skey, svalue);
                 _batch_repliers.push_back(reply);
-
                 write_batch();
-                return;
-
+                break;
+            }
             default:
                 dassert(false, "invalid batch state");
             }
@@ -279,8 +317,11 @@ namespace dsn {
             read_response resp;
             rocksdb::Slice skey(key.data(), key.length());
             rocksdb::Status status = _db->Get(_rd_opts, skey, &resp.value);
+            if (!status.ok())
+            {
+                derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
+            }
             resp.error = status.code();
-
             reply(resp);
         }
 
@@ -291,7 +332,7 @@ namespace dsn {
             rocksdb::Options opts;
             opts.create_if_missing = create_new;
             opts.error_if_exists = create_new;
-            opts.write_buffer_size = 40 * 1024; // 40 K for testing now
+            opts.write_buffer_size = _write_buffer_size;
 
             if (create_new)
             {
@@ -301,7 +342,7 @@ namespace dsn {
             }
             else
             {
-                parse_for_checkpoints();
+                parse_checkpoints();
                 gc_checkpoints();
             }
 
@@ -328,8 +369,11 @@ namespace dsn {
                     _is_catchup = true;
                 }
 
-                ddebug("open app %s: last_committed/durable decree = <%" PRIu64 ", %" PRIu64 ">",
-                    data_dir().c_str(), last_committed_decree(), last_durable_decree());
+                ddebug("open app %s: last_committed/durable_decree = <%" PRId64 ", %" PRId64 ">, "
+                    "last_seq = %" PRIu64 ", last_durable_seq = %" PRIu64 ", is_catch_up = %s",
+                    data_dir().c_str(), last_committed_decree(), last_durable_decree(),
+                    _last_seq, _last_durable_seq, _is_catchup ? "true" : "false"
+                    );
             }
             else
             {
@@ -346,7 +390,7 @@ namespace dsn {
             if (!_is_open)
             {
                 dassert(_db == nullptr, "");
-                dassert(!clear_state, ""); // should not be here if do clear
+                dassert(!clear_state, "should not be here if do clear");
                 return 0;
             }
 
@@ -365,13 +409,7 @@ namespace dsn {
             return 0;
         }
 
-        // flush is always done in the same single thread, so
         int  rrdb_service_impl::checkpoint()
-        {
-            return checkpoint_async();
-        }
-
-        int  rrdb_service_impl::checkpoint_async()
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
@@ -385,20 +423,19 @@ namespace dsn {
             auto status = rocksdb::Checkpoint::Create(_db, &chkpt);
             if (!status.ok())
             {
-                return status.code();
+                derror("%s: create checkpoint failed, err = %s",
+                    data_dir().c_str(),
+                    status.ToString().c_str()
+                    );
+                return ERR_LOCAL_APP_FAILURE;
             }
 
             checkpoint_info ci;
             ci.d = last_committed_decree();
             ci.seq = _last_seq;
-            dassert(ci.seq == _db->GetLatestSequenceNumber(),
-                "seq number mismatch: %" PRId64 " vs %" PRId64 "",
-                ci.seq,
-                _db->GetLatestSequenceNumber()
-                );
+            check_last_seq();
 
             auto dir = chkpt_get_dir_name(ci.d, ci.seq);
-
             auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
             
             if (utils::filesystem::directory_exists(chkpt_dir))
@@ -418,8 +455,8 @@ namespace dsn {
             }
             else
             {
-                derror("%s: checkpoint to %s failed, err = %s",
-                    learn_dir().c_str(),
+                derror("%s: dump checkpoint to %s failed, err = %s",
+                    data_dir().c_str(),
                     chkpt_dir.c_str(),
                     status.ToString().c_str()
                     );
@@ -427,51 +464,6 @@ namespace dsn {
 
             delete chkpt;
             return status.code();
-        }
-
-        void rrdb_service_impl::gc_checkpoints()
-        {
-            while (true)
-            {
-                checkpoint_info del_d;
-
-                {
-                    utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
-                    if (_checkpoints.size() <= _max_checkpoint_count)
-                        break;
-                    del_d = *_checkpoints.begin();
-                    _checkpoints.erase(_checkpoints.begin());
-                }
-
-                auto old_cpt = chkpt_get_dir_name(del_d.d, del_d.seq);
-                auto old_cpt_dir = utils::filesystem::path_combine(data_dir(), old_cpt);
-                if (utils::filesystem::directory_exists(old_cpt_dir))
-                {
-                    if (utils::filesystem::remove_path(old_cpt_dir))
-                    {
-                        dinfo("%s: checkpoint %s removed", data_dir().c_str(), old_cpt_dir.c_str());
-                    }
-                    else
-                    {
-                        derror("%s: remove checkpoint %s failed", data_dir().c_str(), old_cpt_dir.c_str());
-                        {
-                            utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
-                            _checkpoints.push_back(del_d);
-                            std::sort(_checkpoints.begin(), _checkpoints.end(),
-                                [](const checkpoint_info& l, const checkpoint_info& r)
-                                {
-                                    return l.d < r.d || (l.d == r.d && l.seq < r.seq);
-                                }
-                                );
-                        }
-                        break;
-                    }
-                }
-                else
-                {
-                    derror("%s: checkpoint %s does not exist ...", data_dir().c_str(), old_cpt_dir.c_str());
-                }
-            }
         }
         
         int  rrdb_service_impl::get_checkpoint(
@@ -483,7 +475,6 @@ namespace dsn {
 
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
             checkpoint_info ci;
-            ci.d = 0;
             {
                 utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
                 if (_checkpoints.size() > 0)
@@ -493,12 +484,11 @@ namespace dsn {
             if (ci.d > 0)
             {
                 auto dir = chkpt_get_dir_name(ci.d, ci.seq);
-
                 auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
                 auto succ = utils::filesystem::get_subfiles(chkpt_dir, state.files, true);
                 if (!succ)
                 {
-                    derror("list files in chkpoint dir %s failed", chkpt_dir.c_str());
+                    derror("%s: list files in checkpoint dir %s failed", data_dir().c_str(), chkpt_dir.c_str());
                     return ERR_FILE_OPERATION_FAILED;
                 }
 
@@ -509,9 +499,13 @@ namespace dsn {
 
                 state.from_decree_excluded = 0;
                 state.to_decree_included = ci.d;
+                return ERR_OK;
             }
-            
-            return 0;
+            else
+            {
+                derror("%s: no checkpoint found", data_dir().c_str());
+                return ERR_LOCAL_APP_FAILURE;
+            }
         }
 
         int  rrdb_service_impl::apply_checkpoint(::dsn::replication::learn_state& state, ::dsn::replication::chkpt_apply_mode mode)
@@ -568,11 +562,7 @@ namespace dsn {
 
             // move learned files from learn_dir to data_dir
             std::string learn_dir = ::dsn::utils::filesystem::remove_file_name(*state.files.rbegin());
-            std::string new_dir = ::dsn::utils::filesystem::path_combine(
-                data_dir(),
-                "rdb"
-                );
-
+            std::string new_dir = ::dsn::utils::filesystem::path_combine(data_dir(), "rdb");
             if (!::dsn::utils::filesystem::rename_path(learn_dir, new_dir))
             {
                 derror("rename %s to %s failed", learn_dir.c_str(), new_dir.c_str());
@@ -606,7 +596,7 @@ namespace dsn {
                 int r = checkpoint();
                 if (r != 0)
                 {
-                    derror("rocksdb create checkpoint failed, err = %d", r);
+                    derror("%s: checkpoint failed, err = %d", data_dir().c_str(), r);
                     return r;
                 }
 
@@ -618,11 +608,6 @@ namespace dsn {
             }
 
             return 0;
-        }
-                
-        ::dsn::replication::decree rrdb_service_impl::last_durable_decree() const
-        {
-            return _last_durable_decree.load();
         }
     }
 }

@@ -18,24 +18,31 @@ namespace dsn {
 
             virtual int  open(bool create_new);
             virtual int  close(bool clear_state);
+
             virtual int  checkpoint();
-            virtual int  checkpoint_async();
-            
             virtual int  get_checkpoint(::dsn::replication::decree start,
                     const blob& learn_req, /*out*/ ::dsn::replication::learn_state& state);
             virtual int  apply_checkpoint(::dsn::replication::learn_state& state, ::dsn::replication::chkpt_apply_mode mode);
-            virtual ::dsn::replication::decree last_durable_decree() const;
 
         private:
             struct checkpoint_info
             {
                 ::dsn::replication::decree d;
                 rocksdb::SequenceNumber    seq;
+                checkpoint_info() : d(0), seq(0) {}
+                bool operator< (const checkpoint_info& o) const
+                {
+                    return d < o.d || (d == o.d && seq < o.seq);
+                }
             };
 
-            checkpoint_info parse_for_checkpoints();
+            // parse checkpoint directories in the data dir
+            checkpoint_info parse_checkpoints();
+            // garbage collection checkpoints according to _max_checkpoint_count
             void gc_checkpoints();
             void write_batch();
+            void check_last_seq();
+            void catchup_one();
 
         private:
             rocksdb::DB           *_db;
@@ -46,10 +53,11 @@ namespace dsn {
 
             std::atomic<bool>     _is_open;            
             const int             _max_checkpoint_count;
+            const int             _write_buffer_size;
                         
-            rocksdb::SequenceNumber      _last_seq;
-            rocksdb::SequenceNumber      _last_durable_seq; // valid only when _is_catchup is true
+            rocksdb::SequenceNumber      _last_seq; // always equal to DB::GetLatestSequenceNumber()
             bool                         _is_catchup;       // whether the db is in catch up mode
+            rocksdb::SequenceNumber      _last_durable_seq; // valid only when _is_catchup is true
             std::vector<checkpoint_info> _checkpoints;
             ::dsn::utils::ex_lock_nr     _checkpoints_lock;
         };
