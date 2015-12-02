@@ -444,7 +444,7 @@ namespace dsn {
             status = chkpt->CreateCheckpoint(chkpt_dir);
             if (status.ok())
             {
-                _last_durable_decree = last_committed_decree();
+                _last_durable_decree = ci.d;
 
                 {
                     utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);

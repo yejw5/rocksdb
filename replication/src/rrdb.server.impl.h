@@ -54,6 +54,10 @@ namespace dsn {
             std::atomic<bool>     _is_open;            
             const int             _max_checkpoint_count;
             const int             _write_buffer_size;
+
+            // ATTENTION:
+            // _last_committed_decree is totally controlled by rdsn, and set to the decree of last checkpoint when open.
+            // _last_durable_decree is always set to the decree of last checkpoint.
                         
             rocksdb::SequenceNumber      _last_seq; // always equal to DB::GetLatestSequenceNumber()
             bool                         _is_catchup;       // whether the db is in catch up mode
