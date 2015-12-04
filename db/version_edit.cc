@@ -63,6 +63,8 @@ void VersionEdit::Clear() {
   is_column_family_add_ = 0;
   is_column_family_drop_ = 0;
   column_family_name_.clear();
+  last_flush_sequence_ = 0;
+  last_flush_decree_ = 0;
 }
 
 bool VersionEdit::EncodeTo(std::string* dst) const {

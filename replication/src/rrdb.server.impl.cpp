@@ -31,6 +31,7 @@ namespace dsn {
             _last_seq = 0;
             _is_catchup = false;
             _last_durable_seq = 0;
+            _is_checkpointing = false;
 
             // disable write ahead logging as replication handles logging instead now
             _wt_opts.disableWAL = true;
@@ -108,6 +109,7 @@ namespace dsn {
         {
             auto opts = _wt_opts;
             opts.given_sequence_number = _last_seq + 1;
+            opts.given_decree = last_committed_decree() + 1;
             auto status = _db->Write(opts, &_batch);
             if (status.ok())
             {
@@ -165,43 +167,11 @@ namespace dsn {
             
             rocksdb::Slice skey(update.key.data(), update.key.length());
             rocksdb::Slice svalue(update.value.data(), update.value.length());
-            rocksdb::Status status;
-
-            switch (get_current_batch_state())
+            _batch.Put(skey, svalue);
+            _batch_repliers.push_back(reply);
+            if (get_current_batch_state() != BS_BATCH)
             {
-            case BS_NOT_BATCH:
-            {
-                auto opts = _wt_opts;
-                opts.given_sequence_number = _last_seq + 1;
-                status = _db->Put(opts, skey, svalue);
-                if (status.ok())
-                {
-                    _last_seq += 1;
-                    check_last_seq();
-                }
-                else
-                {
-                    derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
-                    set_physical_error(status.code());
-                }
-                reply(status.code());
-                break;
-            }                
-            case BS_BATCH:
-            {
-                _batch.Put(skey, svalue);
-                _batch_repliers.push_back(reply);
-                break;
-            }
-            case BS_BATCH_LAST:
-            {
-                _batch.Put(skey, svalue);
-                _batch_repliers.push_back(reply);
                 write_batch();
-                break;
-            }
-            default:
-                dassert(false, "invalid batch state");
             }
         }
 
@@ -217,43 +187,11 @@ namespace dsn {
             }
             
             rocksdb::Slice skey(key.data(), key.length());
-            rocksdb::Status status;
-
-            switch (get_current_batch_state())
+            _batch.Delete(skey);
+            _batch_repliers.push_back(reply);
+            if (get_current_batch_state() != BS_BATCH)
             {
-            case BS_NOT_BATCH:
-            {
-                auto opts = _wt_opts;
-                opts.given_sequence_number = _last_seq + 1;
-                status = _db->Delete(opts, skey);
-                if (status.ok())
-                {
-                    _last_seq += 1;
-                    check_last_seq();
-                }
-                else
-                {
-                    derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
-                    set_physical_error(status.code());
-                }
-                reply(status.code());
-                break;
-            }
-            case BS_BATCH:
-            {
-                _batch.Delete(skey);
-                _batch_repliers.push_back(reply);
-                break;
-            }
-            case BS_BATCH_LAST:
-            {
-                _batch.Delete(skey);
-                _batch_repliers.push_back(reply);
                 write_batch();
-                break;
-            }
-            default:
-                dassert(false, "invalid batch state");
             }
         }
 
@@ -270,43 +208,11 @@ namespace dsn {
             
             rocksdb::Slice skey(update.key.data(), update.key.length());
             rocksdb::Slice svalue(update.value.data(), update.value.length());
-            rocksdb::Status status;
-
-            switch (get_current_batch_state())
+            _batch.Merge(skey, svalue);
+            _batch_repliers.push_back(reply);
+            if (get_current_batch_state() != BS_BATCH)
             {
-            case BS_NOT_BATCH:
-            {
-                auto opts = _wt_opts;
-                opts.given_sequence_number = _last_seq + 1;
-                status = _db->Merge(opts, skey, svalue);
-                if (status.ok())
-                {
-                    _last_seq += 1;
-                    check_last_seq();
-                }
-                else
-                {
-                    derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
-                    set_physical_error(status.code());
-                }
-                reply(status.code());
-                break;
-            }
-            case BS_BATCH:
-            {
-                _batch.Merge(skey, svalue);
-                _batch_repliers.push_back(reply);
-                break;
-            }
-            case BS_BATCH_LAST:
-            {
-                _batch.Merge(skey, svalue);
-                _batch_repliers.push_back(reply);
                 write_batch();
-                break;
-            }
-            default:
-                dassert(false, "invalid batch state");
             }
         }
 
@@ -317,7 +223,7 @@ namespace dsn {
             read_response resp;
             rocksdb::Slice skey(key.data(), key.length());
             rocksdb::Status status = _db->Get(_rd_opts, skey, &resp.value);
-            if (!status.ok())
+            if (!status.ok() && !status.IsNotFound())
             {
                 derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
             }
@@ -349,8 +255,6 @@ namespace dsn {
             auto status = rocksdb::DB::Open(opts, data_dir() + "/rdb", &_db);
             if (status.ok())
             {
-                _is_open = true;
-
                 // load from checkpoints
                 _last_durable_decree = _checkpoints.size() > 0 ? _checkpoints.rbegin()->d : 0;
                 _last_durable_seq = _checkpoints.size() > 0 ? _checkpoints.rbegin()->seq : 0;
@@ -374,6 +278,9 @@ namespace dsn {
                     data_dir().c_str(), last_committed_decree(), last_durable_decree(),
                     _last_seq, _last_durable_seq, _is_catchup ? "true" : "false"
                     );
+
+                _is_open = true;
+                return ERR_OK;
             }
             else
             {
@@ -381,8 +288,8 @@ namespace dsn {
                     data_dir().c_str(),
                     status.ToString().c_str()
                     );
+                return ERR_LOCAL_APP_FAILURE;
             }
-            return status.code();
         }
 
         int  rrdb_service_impl::close(bool clear_state)
@@ -391,7 +298,7 @@ namespace dsn {
             {
                 dassert(_db == nullptr, "");
                 dassert(!clear_state, "should not be here if do clear");
-                return 0;
+                return ERR_OK;
             }
 
             _is_open = false;
@@ -406,27 +313,28 @@ namespace dsn {
                 }
             }
 
-            return 0;
+            return ERR_OK;
         }
 
         int  rrdb_service_impl::checkpoint()
         {
-            dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
+            if (!_is_open || _is_catchup|| _is_checkpointing)
+                return ERR_WRONG_TIMING;
 
             if (_last_durable_decree == last_committed_decree())
-                return 0;
+                return ERR_NO_NEED_OPERATE;
 
-            if (_is_catchup)
-                return ERR_WRONG_TIMING;
+            _is_checkpointing = true;
             
             rocksdb::Checkpoint* chkpt = nullptr;
             auto status = rocksdb::Checkpoint::Create(_db, &chkpt);
             if (!status.ok())
             {
-                derror("%s: create checkpoint failed, err = %s",
+                derror("%s: create Checkpoint object failed, err = %s",
                     data_dir().c_str(),
                     status.ToString().c_str()
                     );
+                _is_checkpointing = false;
                 return ERR_LOCAL_APP_FAILURE;
             }
 
@@ -437,33 +345,142 @@ namespace dsn {
 
             auto dir = chkpt_get_dir_name(ci.d, ci.seq);
             auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
-            
             if (utils::filesystem::directory_exists(chkpt_dir))
+            {
+                dwarn("%s: checkpoint directory %s already exist, remove it first",
+                    data_dir().c_str(),
+                    chkpt_dir.c_str()
+                    );
                 utils::filesystem::remove_path(chkpt_dir);
+            }
 
             status = chkpt->CreateCheckpoint(chkpt_dir);
-            if (status.ok())
+            delete chkpt;
+            chkpt = nullptr;
+            if (!status.ok())
             {
-                _last_durable_decree = ci.d;
-
-                {
-                    utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
-                    _checkpoints.push_back(ci);
-                }                
-
-                gc_checkpoints();
-            }
-            else
-            {
-                derror("%s: dump checkpoint to %s failed, err = %s",
+                derror("%s: create checkpoint failed, err = %s",
                     data_dir().c_str(),
-                    chkpt_dir.c_str(),
                     status.ToString().c_str()
                     );
+                _is_checkpointing = false;
+                return ERR_LOCAL_APP_FAILURE;
             }
 
-            delete chkpt;
+            {
+                utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                _checkpoints.push_back(ci);
+                std::sort(_checkpoints.begin(), _checkpoints.end());
+                _last_durable_decree = _checkpoints.back().d;
+            }
+
+            ddebug("%s: create checkpoint %s succeed",
+                data_dir().c_str(),
+                chkpt_dir.c_str()
+                );
+
+            gc_checkpoints();
+
+            _is_checkpointing = false;
             return status.code();
+        }
+
+        // Must be thread safe.
+        int  rrdb_service_impl::checkpoint_async()
+        {
+            if (!_is_open || _is_catchup || _is_checkpointing)
+                return ERR_WRONG_TIMING;
+
+            if (_last_durable_decree == last_committed_decree())
+                return ERR_NO_NEED_OPERATE;
+
+            _is_checkpointing = true;
+
+            rocksdb::Checkpoint* chkpt = nullptr;
+            auto status = rocksdb::Checkpoint::Create(_db, &chkpt);
+            if (!status.ok())
+            {
+                derror("%s: create Checkpoint object failed, err = %s",
+                    data_dir().c_str(),
+                    status.ToString().c_str()
+                    );
+                _is_checkpointing = false;
+                return ERR_LOCAL_APP_FAILURE;
+            }
+
+            rocksdb::SequenceNumber sequence = 0;
+            uint64_t decree = 0;
+            {
+                utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                if (!_checkpoints.empty())
+                {
+                    auto& ci = _checkpoints.back();
+                    sequence = ci.seq;
+                    decree = ci.d;
+                }
+            }
+
+            char buf[256];
+            sprintf(buf, "checkpoint.tmp.%" PRIu64 "", dsn_now_us());
+            std::string tmp_dir = utils::filesystem::path_combine(data_dir(), buf);
+            if (utils::filesystem::directory_exists(tmp_dir))
+                utils::filesystem::remove_path(tmp_dir);
+
+            status = chkpt->CreateCheckpointQuick(tmp_dir, &sequence, &decree);
+            delete chkpt;
+            chkpt = nullptr;
+            if (!status.ok())
+            {
+                derror("%s: async create checkpoint failed, err = %s",
+                    data_dir().c_str(),
+                    status.ToString().c_str()
+                    );
+                _is_checkpointing = false;
+                return ERR_LOCAL_APP_FAILURE;
+            }
+
+            checkpoint_info ci;
+            ci.seq = sequence;
+            ci.d = decree;
+            auto dir = chkpt_get_dir_name(ci.d, ci.seq);
+            auto chkpt_dir = utils::filesystem::path_combine(data_dir(), dir);
+            if (utils::filesystem::directory_exists(chkpt_dir))
+            {
+                dwarn("%s: checkpoint directory %s already exist, remove it first",
+                    data_dir().c_str(),
+                    chkpt_dir.c_str()
+                    );
+                utils::filesystem::remove_path(tmp_dir);
+            }
+
+            if (!utils::filesystem::rename_path(tmp_dir, chkpt_dir))
+            {
+                derror("%s: rename checkpoint directory from %s to %s failed",
+                    data_dir().c_str(),
+                    tmp_dir.c_str(),
+                    chkpt_dir.c_str()
+                    );
+                utils::filesystem::remove_path(tmp_dir);
+                _is_checkpointing = false;
+                return ERR_FILE_OPERATION_FAILED;
+            }
+
+            {
+                utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                _checkpoints.push_back(ci);
+                std::sort(_checkpoints.begin(), _checkpoints.end());
+                _last_durable_decree = _checkpoints.back().d;
+            }
+
+            ddebug("%s: async create checkpoint %s succeed",
+                data_dir().c_str(),
+                chkpt_dir.c_str()
+                );
+
+            gc_checkpoints();
+
+            _is_checkpointing = false;
+            return ERR_OK;
         }
         
         int  rrdb_service_impl::get_checkpoint(
@@ -471,7 +488,7 @@ namespace dsn {
             const blob& learn_req, 
             /*out*/ ::dsn::replication::learn_state& state)
         {
-            // simply copy all files
+            // simply get the latest checkpoint
 
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
             checkpoint_info ci;
@@ -607,7 +624,7 @@ namespace dsn {
                     );
             }
 
-            return 0;
+            return ERR_OK;
         }
     }
 }

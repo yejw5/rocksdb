@@ -140,6 +140,14 @@ Status FlushJob::Run(FileMetaData* file_meta) {
   // will no longer be picked up for recovery.
   edit->SetLogNumber(mems.back()->GetNextLogNumber());
   edit->SetColumnFamily(cfd_->GetID());
+  // Mark the last sequence/decree of all memtables to be flushed. Decause mems
+  // are sorted in ascending order by their created, we only need to take the
+  // last one.
+  SequenceNumber seq;
+  uint64_t d;
+  mems.back()->GetLastSeqDecree(&seq, &d);
+  assert(seq > 0);
+  edit->UpdateLastSeqDecree(seq, d);
 
   // This will release and re-acquire the mutex.
   Status s = WriteLevel0Table(mems, edit, &meta);

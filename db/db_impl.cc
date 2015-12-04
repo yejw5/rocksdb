@@ -3704,6 +3704,10 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   StopWatch write_sw(env_, db_options_.statistics.get(), DB_WRITE);
 
   write_thread_.JoinBatchGroup(&w);
+  // ATTENTION(qinzuoyan): because write is always applied in single thread
+  // under replication framework, so we must be the only write batch and
+  // must not be done by others.
+  assert(!w.done);
   if (w.done) {
     // write was done by someone else, no need to grab mutex
     RecordTick(stats_, WRITE_DONE_BY_OTHER);
@@ -3727,6 +3731,10 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   // This is how a write job could be done by the other writer.
   assert(!single_column_family_mode_ ||
          versions_->GetColumnFamilySet()->NumberOfColumnFamilies() == 1);
+
+  // ATTENTION(qinzuoyan): always only use default column family under
+  // replication framework.
+  assert(single_column_family_mode_);
 
   uint64_t max_total_wal_size = (db_options_.max_total_wal_size == 0)
                                     ? 4 * max_total_in_memory_state_
@@ -3840,6 +3848,9 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
 
   if (status.ok()) {
       WriteBatch* updates = nullptr;
+      // ATTENTION(qinzuoyan): because write is always applied in single thread
+      // under replication framework, so we must be the only write batch.
+      assert(write_batch_group.size() == 1);
       if (write_batch_group.size() == 1) {
         updates = write_batch_group[0];
       } else {
@@ -3853,7 +3864,9 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
           (last_sequence + 1) : write_options.given_sequence_number;
       WriteBatchInternal::SetSequence(updates, current_sequence);
       int my_batch_count = WriteBatchInternal::Count(updates);
-      last_sequence += my_batch_count;
+      // ATTENTION(qinzuoyan): under replication framework, batch should not be empty.
+      assert(my_batch_count > 0);
+      last_sequence = current_sequence + my_batch_count - 1;
       const uint64_t batch_size = WriteBatchInternal::ByteSize(updates);
       // Record statistics
       RecordTick(stats_, NUMBER_KEYS_WRITTEN, my_batch_count);
@@ -3901,7 +3914,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
         PERF_TIMER_GUARD(write_memtable_time);
 
         status = WriteBatchInternal::InsertInto(
-            updates, column_family_memtables_.get(),
+            updates, column_family_memtables_.get(), write_options.given_decree,
             write_options.ignore_missing_column_families, 0, this, false);
         // A non-OK status here indicates iteration failure (either in-memory
         // writebatch corruption (very bad), or the client specified invalid
