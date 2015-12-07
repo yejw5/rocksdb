@@ -1297,12 +1297,16 @@ struct WriteOptions {
   // Default: 0 (rocksdb should generate the number by itself in this case)
   SequenceNumber given_sequence_number;
 
+  // Decree is an value affiliated to the write.
+  uint64_t given_decree;
+
   WriteOptions()
       : sync(false),
         disableWAL(false),
         timeout_hint_us(0),
         ignore_missing_column_families(false),
-        given_sequence_number(0) {}
+        given_sequence_number(0),
+        given_decree(0) {}
 };
 
 // Options that control flush operations

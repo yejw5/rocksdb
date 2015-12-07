@@ -491,6 +491,19 @@ class Version {
 
   void GetColumnFamilyMetaData(ColumnFamilyMetaData* cf_meta);
 
+  void GetLastSeqDecree(SequenceNumber* sequence, uint64_t* decree) {
+    *sequence = last_sequence_;
+    *decree = last_decree_;
+  }
+
+  void UpdateLastSeqDecree(SequenceNumber sequence, uint64_t decree) {
+    if (sequence > last_sequence_) {
+      assert(decree >= last_decree_);
+      last_sequence_ = sequence;
+      last_decree_ = decree;
+    }
+  }
+
  private:
   Env* env_;
   friend class VersionSet;
@@ -530,6 +543,10 @@ class Version {
   Version* next_;               // Next version in linked list
   Version* prev_;               // Previous version in linked list
   int refs_;                    // Number of live refs to this version
+
+  // last sequence/decree flushed to sstables.
+  SequenceNumber last_sequence_;
+  uint64_t last_decree_;
 
   // A version number that uniquely represents this version. This is
   // used for debugging and logging purposes only.

@@ -10,6 +10,7 @@
 
 #include <string>
 #include "rocksdb/status.h"
+#include "rocksdb/types.h"
 
 namespace rocksdb {
 
@@ -28,6 +29,15 @@ class Checkpoint {
   // The directory should not already exist and will be created by this API.
   // The directory will be an absolute path
   virtual Status CreateCheckpoint(const std::string& checkpoint_dir);
+
+  // Quickly build an openable snapshot of RocksDB on the same disk, will not
+  // wait flush before generate checkpoint.
+  // Only generate checkpoint when the last flushed sequence/decree are greater
+  // than *sequence/*decree, and the new values are returned by sequence/decree.
+  // The directory should not already exist and will be created by this API.
+  virtual Status CreateCheckpointQuick(const std::string& checkpoint_dir,
+                                       /*inout*/ SequenceNumber* sequence,
+                                       /*inout*/ uint64_t* decree);
 
   virtual ~Checkpoint() {}
 };

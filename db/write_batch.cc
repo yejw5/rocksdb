@@ -408,16 +408,18 @@ class MemTableInserter : public WriteBatch::Handler {
  public:
   SequenceNumber sequence_;
   ColumnFamilyMemTables* cf_mems_;
+  uint64_t decree_;
   bool ignore_missing_column_families_;
   uint64_t log_number_;
   DBImpl* db_;
   const bool dont_filter_deletes_;
 
-  MemTableInserter(SequenceNumber sequence, ColumnFamilyMemTables* cf_mems,
+  MemTableInserter(SequenceNumber sequence, ColumnFamilyMemTables* cf_mems, uint64_t decree,
                    bool ignore_missing_column_families, uint64_t log_number,
                    DB* db, const bool dont_filter_deletes)
       : sequence_(sequence),
         cf_mems_(cf_mems),
+        decree_(decree),
         ignore_missing_column_families_(ignore_missing_column_families),
         log_number_(log_number),
         db_(reinterpret_cast<DBImpl*>(db)),
@@ -504,6 +506,7 @@ class MemTableInserter : public WriteBatch::Handler {
     // Since all Puts are logged in trasaction logs (if enabled), always bump
     // sequence number. Even if the update eventually fails and does not result
     // in memtable add/update.
+    mem->UpdateLastSeqDecree(sequence_, decree_);
     sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
@@ -534,6 +537,7 @@ class MemTableInserter : public WriteBatch::Handler {
       }
     }
     mem->Add(sequence_, kTypeDeletion, key, Slice());
+    mem->UpdateLastSeqDecree(sequence_, decree_);
     sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
@@ -564,6 +568,7 @@ class MemTableInserter : public WriteBatch::Handler {
       }
     }
     mem->Add(sequence_, kTypeSingleDeletion, key, Slice());
+    mem->UpdateLastSeqDecree(sequence_, decree_);
     sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
@@ -644,6 +649,7 @@ class MemTableInserter : public WriteBatch::Handler {
       mem->Add(sequence_, kTypeMerge, key, value);
     }
 
+    mem->UpdateLastSeqDecree(sequence_, decree_);
     sequence_++;
     cf_mems_->CheckMemtableFull();
     return Status::OK();
@@ -658,10 +664,11 @@ class MemTableInserter : public WriteBatch::Handler {
 // to be called from a single-threaded write thread (or while holding DB mutex)
 Status WriteBatchInternal::InsertInto(const WriteBatch* b,
                                       ColumnFamilyMemTables* memtables,
+                                      uint64_t decree,
                                       bool ignore_missing_column_families,
                                       uint64_t log_number, DB* db,
                                       const bool dont_filter_deletes) {
-  MemTableInserter inserter(WriteBatchInternal::Sequence(b), memtables,
+  MemTableInserter inserter(WriteBatchInternal::Sequence(b), memtables, decree,
                             ignore_missing_column_families, log_number, db,
                             dont_filter_deletes);
   return b->Iterate(&inserter);

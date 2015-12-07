@@ -829,6 +829,8 @@ Version::Version(ColumnFamilyData* column_family_data, VersionSet* vset,
       next_(this),
       prev_(this),
       refs_(0),
+      last_sequence_(0),
+      last_decree_(0),
       version_number_(version_number) {}
 
 void Version::Get(const ReadOptions& read_options,
@@ -1948,6 +1950,12 @@ void VersionSet::AppendVersion(ColumnFamilyData* column_family_data,
   assert(v != current);
   if (current != nullptr) {
     assert(current->refs_ > 0);
+    // inherit last sequence/decree from old version, but for flush the old
+    // value would not take effect.
+    SequenceNumber seq;
+    uint64_t d;
+    current->GetLastSeqDecree(&seq, &d);
+    v->UpdateLastSeqDecree(seq, d);
     current->Unref();
   }
   column_family_data->SetCurrent(v);
@@ -2023,6 +2031,11 @@ Status VersionSet::LogAndApply(ColumnFamilyData* column_family_data,
       batch_edits.push_back(last_writer->edit);
     }
     builder->SaveTo(v->storage_info());
+    // update last sequence/decree from VersionEdit, only take effect for flush
+    SequenceNumber seq;
+    uint64_t d;
+    edit->GetLastSeqDecree(&seq, &d);
+    v->UpdateLastSeqDecree(seq, d);
   }
 
   // Initialize new descriptor log file if necessary by creating

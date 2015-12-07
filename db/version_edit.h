@@ -247,6 +247,19 @@ class VersionEdit {
   std::string DebugString(bool hex_key = false) const;
   std::string DebugJSON(int edit_num, bool hex_key = false) const;
 
+  void GetLastSeqDecree(SequenceNumber* sequence, uint64_t* decree) {
+    *sequence = last_flush_sequence_;
+    *decree = last_flush_decree_;
+  }
+
+  void UpdateLastSeqDecree(SequenceNumber sequence, uint64_t decree) {
+    if (sequence > last_flush_sequence_) {
+      assert(decree >= last_flush_decree_);
+      last_flush_sequence_ = sequence;
+      last_flush_decree_ = decree;
+    }
+  }
+
  private:
   friend class VersionSet;
   friend class Version;
@@ -279,6 +292,10 @@ class VersionEdit {
   bool is_column_family_drop_;
   bool is_column_family_add_;
   std::string column_family_name_;
+
+  // Used to mark the last sequence/decree of flushed memtables.
+  SequenceNumber last_flush_sequence_;
+  uint64_t last_flush_decree_;
 };
 
 }  // namespace rocksdb

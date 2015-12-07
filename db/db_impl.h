@@ -173,6 +173,10 @@ class DBImpl : public DB {
   virtual Status GetLiveFiles(std::vector<std::string>&,
                               uint64_t* manifest_file_size,
                               bool flush_memtable = true) override;
+  virtual Status GetLiveFilesQuick(std::vector<std::string>& ret,
+                              uint64_t* manifest_file_size,
+                              SequenceNumber* last_sequence,
+                              uint64_t* last_decree) override;
   virtual Status GetSortedWalFiles(VectorLogPtr& files) override;
 
   virtual Status GetUpdatesSince(
