@@ -7,6 +7,30 @@ using namespace dsn::replication;
 
 namespace dsn{ namespace apps{
 
+class rrdb_client_hash_key : public rrdb_client
+{
+public:
+    rrdb_client_hash_key(
+            const std::vector< ::dsn::rpc_address>& meta_servers,
+            const char* replicate_app_name)
+        :rrdb_client(meta_servers, replicate_app_name)
+    {}
+
+    virtual uint64_t get_key_hash(const ::dsn::blob& key)
+    {
+        dassert(key.length() > 4, "key length must be greater than 4");
+        int length = *((int*)key.data());
+        dassert(key.length() >= 4 + length, "key length must be greater than 4 + hash_key length");
+        dsn::blob hash_key(key.buffer_ptr(), 4, length);
+        return dsn_crc64_compute(hash_key.data(), hash_key.length(), 0);
+    }
+
+    virtual uint64_t get_key_hash(const update_request& key)
+    {
+        return get_key_hash(key.key);
+    }
+};
+
 class rrdb_client_impl : public irrdb_client
 {
 public:
@@ -48,7 +72,7 @@ private:
     static int get_client_error(dsn::error_code server_error);
 
 private:
-    rrdb_client _client;
+    rrdb_client_hash_key _client;
     std::string _cluster;
     std::string _app_name;
 
