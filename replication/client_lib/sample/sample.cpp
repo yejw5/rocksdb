@@ -23,4 +23,8 @@ int main()
 
     ret = client->del("k1", "s1");
     std::cout<< "del key error=" << ret << std::endl;
+
+    ret = client->get("k1", "s1", value);
+    std::cout<< "get after del, error=" << ret << "," << client->get_error_string(ret) << std::endl;
+
 }
