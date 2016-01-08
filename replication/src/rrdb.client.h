@@ -19,8 +19,15 @@ public:
     
     // from requests to partition index
     // PLEASE DO RE-DEFINE THEM IN A SUB CLASS!!!
-    virtual int get_partition_index(const update_request& key) { return 0; };
-    virtual int get_partition_index(const ::dsn::blob& key) { return 0; };
+    virtual uint64_t get_key_hash(const update_request& key)
+    {
+        return dsn_crc64_compute(key.key.data(), key.key.length(), 0);
+    }
+
+    virtual uint64_t get_key_hash(const ::dsn::blob& key)
+    {
+        return dsn_crc64_compute(key.data(), key.length(), 0);
+    }
 
     // ---------- call RPC_RRDB_RRDB_PUT ------------
     // - synchronous 
@@ -31,7 +38,7 @@ public:
         )
     {
         auto resp_task = ::dsn::replication::replication_app_client_base::write<update_request, int>(
-            get_partition_index(update),
+            get_key_hash(update),
             RPC_RRDB_RRDB_PUT,
             update,
             nullptr,
@@ -57,7 +64,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::write<rrdb_client, update_request, int>(
-            get_partition_index(update),
+            get_key_hash(update),
             RPC_RRDB_RRDB_PUT, 
             update,
             this,
@@ -88,7 +95,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::write<rrdb_client, update_request, int>(
-            get_partition_index(*update),
+            get_key_hash(*update),
             RPC_RRDB_RRDB_PUT,
             update,
             this,
@@ -120,7 +127,7 @@ public:
         )
     {
         auto resp_task = ::dsn::replication::replication_app_client_base::write< ::dsn::blob, int>(
-            get_partition_index(key),
+            get_key_hash(key),
             RPC_RRDB_RRDB_REMOVE,
             key,
             nullptr,
@@ -146,7 +153,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::write<rrdb_client, ::dsn::blob, int>(
-            get_partition_index(key),
+            get_key_hash(key),
             RPC_RRDB_RRDB_REMOVE, 
             key,
             this,
@@ -177,7 +184,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::write<rrdb_client, ::dsn::blob, int>(
-            get_partition_index(*key),
+            get_key_hash(*key),
             RPC_RRDB_RRDB_REMOVE,
             key,
             this,
@@ -209,7 +216,7 @@ public:
         )
     {
         auto resp_task = ::dsn::replication::replication_app_client_base::write<update_request, int>(
-            get_partition_index(update),
+            get_key_hash(update),
             RPC_RRDB_RRDB_MERGE,
             update,
             nullptr,
@@ -235,7 +242,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::write<rrdb_client, update_request, int>(
-            get_partition_index(update),
+            get_key_hash(update),
             RPC_RRDB_RRDB_MERGE, 
             update,
             this,
@@ -266,7 +273,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::write<rrdb_client, update_request, int>(
-            get_partition_index(*update),
+            get_key_hash(*update),
             RPC_RRDB_RRDB_MERGE,
             update,
             this,
@@ -299,7 +306,7 @@ public:
         )
     {
         auto resp_task = ::dsn::replication::replication_app_client_base::read< ::dsn::blob, read_response>(
-            get_partition_index(key),
+            get_key_hash(key),
             RPC_RRDB_RRDB_GET,
             key,
             nullptr,
@@ -327,7 +334,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::read<rrdb_client, ::dsn::blob, read_response>(
-            get_partition_index(key),
+            get_key_hash(key),
             RPC_RRDB_RRDB_GET, 
             key,
             this,
@@ -360,7 +367,7 @@ public:
         )
     {
         return ::dsn::replication::replication_app_client_base::read<rrdb_client, ::dsn::blob, read_response>(
-            get_partition_index(*key),
+            get_key_hash(*key),
             RPC_RRDB_RRDB_GET,
             key,
             this,
