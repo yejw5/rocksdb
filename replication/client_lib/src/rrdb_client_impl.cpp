@@ -142,10 +142,4 @@ const char* rrdb_client_impl::get_error_string(int error_code) const
     std::shared_ptr<char> buffer(buf);
     key.assign(buffer, 0, len);
 }
-
-/*static*/ bool rrdb_client_impl::valid_app_char(int c)
-{
-    return (bool)std::isalnum(c) || c == '_' || c == '.';
-}
-
 }} // namespace

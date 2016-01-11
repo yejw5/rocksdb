@@ -66,7 +66,6 @@ public:
 
 private:
     static void generate_key(dsn::blob& key, const std::string& hash_key, const std::string& sort_key);
-    static bool valid_app_char(const int c);
     static int get_client_error(int server_error);
     static int get_rocksdb_server_error(int rocskdb_error);
 

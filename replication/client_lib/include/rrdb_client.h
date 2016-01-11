@@ -38,7 +38,7 @@ public:
     ///     store the k-v to the cluster.
     ///     key is composed of hashkey and sortkey.
     /// \param hashkey
-    /// length must be greater than 1, used to decide which partition to put this k-v
+    /// length must be greater than 0, used to decide which partition to put this k-v
     /// \param sortkey
     /// all the k-v under hashkey will be sorted by sortkey.
     /// \param value
@@ -61,7 +61,7 @@ public:
     ///     get value by key from the cluster.
     ///     key is composed of hashkey and sortkey. must provide both to get the value.
     /// \param hashkey
-    /// length must be greater than 1, used to decide which partition to get this k-v
+    /// length must be greater than 0, used to decide which partition to get this k-v
     /// \param sortkey
     /// all the k-v under hashkey will be sorted by sortkey.
     /// \param value
@@ -84,7 +84,7 @@ public:
     ///     del stored k-v by key from cluster
     ///     key is composed of hashkey and sortkey. must provide both to get the value.
     /// \param hashkey
-    /// length must be greater than 1, used to decide from which partition to del this k-v
+    /// length must be greater than 0, used to decide from which partition to del this k-v
     /// \param sortkey
     /// all the k-v under hashkey will be sorted by sortkey.
     /// \param timeout_milliseconds
