@@ -320,6 +320,20 @@ namespace dsn {
             delete _db;
             _db = nullptr;
 
+            _batch.Clear();
+            _batch_repliers.clear();
+
+            _last_seq = 0;
+            _is_catchup = false;
+            _last_durable_seq = 0;
+            _is_checkpointing = false;
+            {
+                utils::auto_lock<utils::ex_lock_nr> l(_checkpoints_lock);
+                _checkpoints.clear();
+            }
+
+            reset_states();
+
             if (clear_state)
             {
                 if (!utils::filesystem::remove_path(data_dir()))
