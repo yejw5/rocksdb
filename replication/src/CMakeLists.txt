@@ -10,7 +10,7 @@ set(MY_PROJ_SRC "")
 # "GLOB" for non-recursive search
 set(MY_SRC_SEARCH_MODE "GLOB")
 
-set(MY_PROJ_INC_PATH "../../include")
+set(MY_PROJ_INC_PATH "../../include" "../ext/shmcounter/include")
 
 set(MY_PROJ_LIBS 
     dsn.replication 
@@ -19,6 +19,7 @@ set(MY_PROJ_LIBS
     dsn.failure_detector
     dsn.replication.zookeeper_provider 
     zookeeper_mt
+    shmcounter
     )
 
 if (UNIX)
@@ -27,7 +28,7 @@ else()
 	set(MY_PROJ_LIBS rocksdblib ${MY_PROJ_LIBS} rpcrt4)
 endif()
 
-set(MY_PROJ_LIB_PATH "../..")
+set(MY_PROJ_LIB_PATH "../.." "../ext/shmcounter/lib")
 
 set(MY_BOOST_PACKAGES system)
 
