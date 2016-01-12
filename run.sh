@@ -23,6 +23,7 @@ function usage()
     echo "   stop_onebox    stop rrdb onebox"
     echo "   list_onebox    list rrdb onebox"
     echo "   clear_onebox   clear_rrdb onebox"
+    echo "   run_bench      run benchmark test"
     echo
     echo "Command 'run.sh <command> -h' will print help for subcommands."
 }
@@ -252,6 +253,77 @@ function run_clear_onebox()
     fi
 }
 
+#####################
+## run_bench
+#####################
+function usage_run_bench()
+{
+    echo "Options for subcommand 'run_bench':"
+    echo "   -h|--help            print the help info"
+    echo "   -t|--type            benchmark type, supporting:"
+    echo "                          fillseq, fillrandom, filluniquerandom,"
+    echo "                          readrandom, deleteseq, deleterandom"
+    echo "   -n <num>             number of key/value pairs, default 100000"
+    echo "   --thread_num <num>   number of threads, default 1"
+    echo "   --key_size <num>     key size, default 16"
+    echo "   --value_size <num>   value size, default 100"
+    echo "   --timeout <num>      timeout in milliseconds, default 10000"
+}
+
+function run_bench()
+{
+    TYPE=readrandom
+    NUM=100000
+    THREAD=1
+    KEY_SIZE=16
+    VALUE_SIZE=100
+    TIMEOUT_MS=10000
+    while [[ $# > 0 ]]; do
+        key="$1"
+        case $key in
+            -h|--help)
+                usage_run_bench
+                exit 0
+                ;;
+            -t|--type)
+                TYPE="$2"
+                shift
+                ;;
+            -n)
+                NUM="$2"
+                shift
+                ;;
+            --thread_num)
+                THREAD="$2"
+                shift
+                ;;
+            --key_size)
+                KEY_SIZE="$2"
+                shift
+                ;;
+            --value_size)
+                VALUE_SIZE="$2"
+                shift
+                ;;
+            --timeout)
+                TIMEOUT_MS="$2"
+                shift
+                ;;
+            *)
+                echo "ERROR: unknown option \"$key\""
+                echo
+                usage_run_bench
+                exit -1
+                ;;
+        esac
+        shift
+    done
+
+    ./rrdb_bench --benchmarks=${TYPE}_rrdb --rrdb_timeout_ms=${TIMEOUT_MS} \
+        --key_size=${KEY_SIZE} --value_size=${VALUE_SIZE} --threads=${THREAD} --num=${NUM} \
+        --rrdb_app_name=rrdb.instance0 --stats_interval=1000 --histogram=1
+}
+
 ####################################################################
 
 if [ $# -eq 0 ]; then
@@ -282,6 +354,10 @@ case $cmd in
     list_onebox)
         shift
         run_list_onebox $*
+        ;;
+    run_bench)
+        shift
+        run_bench $*
         ;;
     *)
         echo "ERROR: unknown command $cmd"

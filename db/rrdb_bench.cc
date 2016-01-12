@@ -84,7 +84,7 @@ using namespace ::dsn::apps;
 
 DEFINE_string(rrdb_config, "replication/config-client.ini", "rrdb config file");
 DEFINE_string(rrdb_app_name, "rrdb.instance0", "rrdb app name");
-DEFINE_int32(rrdb_timeout_ms, 5000, "rrdb read/write timeout in milliseconds");
+DEFINE_int32(rrdb_timeout_ms, 10000, "rrdb read/write timeout in milliseconds");
 
 DEFINE_string(benchmarks,
               "fillseq_rrdb,filluniquerandom_rrdb,readrandom_rrdb,deleteseq_rrdb",
