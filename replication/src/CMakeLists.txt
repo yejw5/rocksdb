@@ -1,14 +1,3 @@
-cmake_minimum_required(VERSION 2.8.8)
-
-set(DSN_ROOT "$ENV{DSN_ROOT}")
-if((DSN_ROOT STREQUAL "") OR (NOT EXISTS "${DSN_ROOT}/"))
-    message(FATAL_ERROR "Please make sure that DSN_ROOT is defined and does exists.")
-endif()
-
-include("${DSN_ROOT}/bin/dsn.cmake")
-
-set(DSN_BUILD_RUNTIME FALSE)
-
 set(MY_PROJ_NAME "rrdb")
 project(${MY_PROJ_NAME} C CXX)
 
@@ -54,5 +43,4 @@ if (UNIX)
     set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so")
 endif()
 
-dsn_common_setup()
 dsn_add_executable()

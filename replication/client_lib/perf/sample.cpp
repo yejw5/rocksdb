@@ -57,7 +57,7 @@ struct configParam {
         max_qps = 2000;
         max_time = 1000;
         client_num = 1;
-        log_path = "/home/mi/learning/test/log/";
+        log_path = "./result/";
     }
 
 };
@@ -139,7 +139,7 @@ std::string initString(int size) {
 //generate value base on sort_key
 std::string generateValue(std::string sort_key, int valueSize) {
     std::string value = "";
-    int len = sort_key.size() <= valueSize ? sort_key.size() : valueSize;
+    int len = sort_key.size() <= (size_t)valueSize ? sort_key.size() : valueSize;
     value = sort_key.substr(0, len);
     for(int i = 0; i < valueSize - len; i++)
     {
@@ -211,7 +211,7 @@ void do_main(irrdb_client* client,
             value=generateValue(sort_key, configPam.valueSize);
             do {
                 ret = client->set(hash_key, sort_key, value);
-                cout << "sss:" << ret << endl;
+                //cout << "sss:" << ret << endl;
             } while(configPam.type == "pressure" && ret == dsn::apps::ERROR_TIMEOUT);
         }
         else if (type == "del") {
@@ -360,7 +360,7 @@ std::string get_time() {
     tm* t= localtime(&tt);
     std::string time = "";
     time += trans(t->tm_year + 1900) +"-"+ trans(t->tm_mon + 1) + "-" + trans(t->tm_mday) + "-"
-            + trans(t->tm_hour) + ":" + trans(t->tm_min) + ":" + trans(t->tm_sec);
+            + trans(t->tm_hour) + "-" + trans(t->tm_min) + "-" + trans(t->tm_sec);
     return time;
 }
 
@@ -448,8 +448,18 @@ void test_performance(struct configParam& configPam,
     mutex lock;
     std::ofstream out, out_detail;
     std::string log_path  = configPam.log_path + process_name + "_" + time;
-    out.open(log_path + "_summary", ios::out | ios::app);
-    out_detail.open(log_path + "_detail", ios::out | ios::app);
+    std::string summary_path = log_path + "_summary";
+    out.open(summary_path, ios::out | ios::app);
+    if (!out.good()) {
+        std::cerr<<"open file "<<summary_path<<" failed"<<std::endl;
+        return;
+    }
+    std::string detail_path = log_path + "_detail";
+    out_detail.open(detail_path, ios::out | ios::app);
+    if (!out.good()) {
+        std::cerr<<"open file "<<detail_path<<" failed"<<std::endl;
+        return;
+    }
     write_head_file(out, configPam.type);
     write_head_file(out_detail, configPam.type);
 

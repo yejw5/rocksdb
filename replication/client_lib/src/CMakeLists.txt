@@ -28,7 +28,7 @@ set(MY_PROJ_LIB_PATH "")
 if (UNIX)
     SET(CMAKE_INSTALL_RPATH ".")
     SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-    set(MY_BINPLACES "${DSN_ROOT}/lib/libdsn.core.so")
+    #set(MY_BINPLACES "${DSN_ROOT}/lib/libdsn.core.so")
 endif()
 
 dsn_add_shared_library()
