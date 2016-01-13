@@ -25,13 +25,69 @@ namespace dsn {
         }
 
         rrdb_service_impl::rrdb_service_impl(::dsn::replication::replica* replica)
-            : rrdb_service(replica), _max_checkpoint_count(3), _write_buffer_size(40*1024)
+            : rrdb_service(replica), _max_checkpoint_count(3)
         {
             _is_open = false;
             _last_seq = 0;
             _is_catchup = false;
             _last_durable_seq = 0;
             _is_checkpointing = false;
+
+            // init db options
+            _db_opts.write_buffer_size =
+                (size_t)dsn_config_get_value_uint64("replication",
+                "rocksdb_write_buffer_size",
+                134217728,
+                "rocksdb options.write_buffer_size, default 128MB"
+                );
+            _db_opts.max_write_buffer_number =
+                (int)dsn_config_get_value_uint64("replication",
+                "rocksdb_max_write_buffer_number",
+                3,
+                "rocksdb options.max_write_buffer_number, default 3"
+                );
+            _db_opts.max_background_compactions =
+                (int)dsn_config_get_value_uint64("replication",
+                "rocksdb_max_background_compactions",
+                20,
+                "rocksdb options.max_background_compactions, default 20"
+                );
+            _db_opts.target_file_size_base =
+                dsn_config_get_value_uint64("replication",
+                "rocksdb_target_file_size_base",
+                67108864,
+                "rocksdb options.write_buffer_size, default 64MB"
+                );
+            _db_opts.max_bytes_for_level_base =
+                dsn_config_get_value_uint64("replication",
+                "rocksdb_max_bytes_for_level_base",
+                10485760,
+                "rocksdb options.max_bytes_for_level_base, default 10MB"
+                );
+            _db_opts.max_grandparent_overlap_factor =
+                (int)dsn_config_get_value_uint64("replication",
+                "rocksdb_max_grandparent_overlap_factor",
+                10,
+                "rocksdb options.max_grandparent_overlap_factor, default 10"
+                );
+            _db_opts.level0_file_num_compaction_trigger =
+                (int)dsn_config_get_value_uint64("replication",
+                "rocksdb_level0_file_num_compaction_trigger",
+                4,
+                "rocksdb options.level0_file_num_compaction_trigger, 4"
+                );
+            _db_opts.level0_slowdown_writes_trigger =
+                (int)dsn_config_get_value_uint64("replication",
+                "rocksdb_level0_slowdown_writes_trigger",
+                8,
+                "rocksdb options.level0_slowdown_writes_trigger, default 8"
+                );
+            _db_opts.level0_stop_writes_trigger =
+                (int)dsn_config_get_value_uint64("replication",
+                "rocksdb_level0_stop_writes_trigger",
+                12,
+                "rocksdb options.level0_stop_writes_trigger, default 12"
+                );
 
             // disable write ahead logging as replication handles logging instead now
             _wt_opts.disableWAL = true;
@@ -240,10 +296,9 @@ namespace dsn {
         {
             dassert(!_is_open, "rrdb service %s is already opened", data_dir().c_str());
 
-            rocksdb::Options opts;
+            rocksdb::Options opts = _db_opts;
             opts.create_if_missing = create_new;
             opts.error_if_exists = create_new;
-            opts.write_buffer_size = _write_buffer_size;
 
             rrdb_service_impl::checkpoint_info last_checkpoint;
             if (create_new)

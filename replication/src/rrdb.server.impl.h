@@ -110,12 +110,12 @@ namespace dsn {
             rocksdb::DB           *_db;
             rocksdb::WriteBatch   _batch;
             std::vector<rpc_replier<int>> _batch_repliers;
+            rocksdb::Options      _db_opts;
             rocksdb::WriteOptions _wt_opts;
             rocksdb::ReadOptions  _rd_opts;
 
             volatile bool         _is_open;
             const int             _max_checkpoint_count;
-            const int             _write_buffer_size;
 
             // ATTENTION:
             // _last_committed_decree is totally controlled by rdsn, and set to the decree of last checkpoint when open.
