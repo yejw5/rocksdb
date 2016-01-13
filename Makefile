@@ -35,11 +35,23 @@ quoted_perl_command = $(subst ','\'',$(perl_command))
 # `make install`
 DEBUG_LEVEL=1
 
-ifeq ($(MAKECMDGOALS),dbg)
+ifeq ($(MAKECMDGOALS),static_lib_debug)
 	DEBUG_LEVEL=2
 endif
 
-ifeq ($(MAKECMDGOALS),static_lib_dbg)
+ifeq ($(MAKECMDGOALS),static_lib_release)
+	DEBUG_LEVEL=0
+endif
+
+ifeq ($(MAKECMDGOALS),rrdb_bench_debug)
+	DEBUG_LEVEL=2
+endif
+
+ifeq ($(MAKECMDGOALS),rrdb_bench_release)
+	DEBUG_LEVEL=0
+endif
+
+ifeq ($(MAKECMDGOALS),dbg)
 	DEBUG_LEVEL=2
 endif
 
@@ -385,12 +397,14 @@ endif  # PLATFORM_SHARED_EXT
 	dbg rocksdbjavastatic rocksdbjava install install-static install-shared uninstall \
 	analyze tools
 
+static_lib_debug: $(LIBRARY)
+static_lib_release: $(LIBRARY)
+rrdb_bench_debug: rrdb_bench
+rrdb_bench_release: rrdb_bench
 
 all: $(LIBRARY) $(BENCHMARKS) tools $(TESTS)
 
 static_lib: $(LIBRARY)
-
-static_lib_dbg: $(LIBRARY)
 
 shared_lib: $(SHARED)
 
@@ -637,6 +651,11 @@ $(LIBRARY): $(LIBOBJECTS)
 
 db_bench: db/db_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(AM_LINK)
+
+rrdb_bench: db/rrdb_bench.o $(LIBOBJECTS) $(TESTUTIL) ${DSN_ROOT}/lib/libdsn.core.so ${DSN_ROOT}/lib/librrdb.clientlib.so
+	$(AM_LINK) -L${DSN_ROOT}/lib -lrrdb.clientlib -Wl,-rpath,.
+	cp ${DSN_ROOT}/lib/libdsn.core.so .
+	cp ${DSN_ROOT}/lib/librrdb.clientlib.so .
 
 cache_bench: util/cache_bench.o $(LIBOBJECTS) $(TESTUTIL)
 	$(AM_LINK)

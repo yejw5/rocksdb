@@ -1,5 +1,7 @@
-replication/src/.matchfile
-replication/src/builder
+replication/.matchfile
+replication/builder
+onebox/
+data/
 
 TARGETS
 make_config.mk
