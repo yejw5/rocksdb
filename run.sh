@@ -260,9 +260,11 @@ function usage_run_bench()
 {
     echo "Options for subcommand 'run_bench':"
     echo "   -h|--help            print the help info"
+    echo "   -c|--config <path>   config file path, default './replication/config-client.ini'"
     echo "   -t|--type            benchmark type, supporting:"
-    echo "                          fillseq, fillrandom, filluniquerandom,"
-    echo "                          readrandom, deleteseq, deleterandom"
+    echo "                          fillseq_rrdb, fillrandom_rrdb, filluniquerandom_rrdb,"
+    echo "                          readrandom_rrdb, deleteseq_rrdb, deleterandom_rrdb"
+    echo "                        default is 'fillseq_rrdb,readrandom_rrdb'"
     echo "   -n <num>             number of key/value pairs, default 100000"
     echo "   --thread_num <num>   number of threads, default 1"
     echo "   --key_size <num>     key size, default 16"
@@ -272,7 +274,8 @@ function usage_run_bench()
 
 function run_bench()
 {
-    TYPE=readrandom
+    CONFIG=./replication/config-client.ini
+    TYPE=fillseq_rrdb,readrandom_rrdb
     NUM=100000
     THREAD=1
     KEY_SIZE=16
@@ -284,6 +287,10 @@ function run_bench()
             -h|--help)
                 usage_run_bench
                 exit 0
+                ;;
+            -c|--config)
+                CONFIG="$2"
+                shift
                 ;;
             -t|--type)
                 TYPE="$2"
@@ -319,9 +326,10 @@ function run_bench()
         shift
     done
 
-    ./rrdb_bench --benchmarks=${TYPE}_rrdb --rrdb_timeout_ms=${TIMEOUT_MS} \
+    ./rrdb_bench --rrdb_config=${CONFIG} --benchmarks=${TYPE} --rrdb_timeout_ms=${TIMEOUT_MS} \
         --key_size=${KEY_SIZE} --value_size=${VALUE_SIZE} --threads=${THREAD} --num=${NUM} \
-        --rrdb_app_name=rrdb.instance0 --stats_interval=1000 --histogram=1
+        --rrdb_app_name=rrdb.instance0 --stats_interval=1000 --histogram=1 \
+        --compression_type=none --compression_ratio=1.0
 }
 
 ####################################################################

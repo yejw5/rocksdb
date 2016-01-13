@@ -3011,7 +3011,7 @@ class Benchmark {
         bytes += key.size() + value.size();
       } else if (ret != ::dsn::apps::ERROR_NOT_FOUND) {
         fprintf(stderr, "Get returned an error: %s\n", client->get_error_string(ret));
-        abort();
+        exit(1);
       }
       thread->stats.FinishedOps(nullptr, nullptr, 1);
     }
