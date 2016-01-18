@@ -52,6 +52,12 @@ namespace dsn {
                 20,
                 "rocksdb options.max_background_compactions, default 20"
                 );
+            _db_opts.num_levels =
+                dsn_config_get_value_uint64("replication",
+                "rocksdb_num_levels",
+                6,
+                "rocksdb options.num_levels, default 6"
+                );
             _db_opts.target_file_size_base =
                 dsn_config_get_value_uint64("replication",
                 "rocksdb_target_file_size_base",
