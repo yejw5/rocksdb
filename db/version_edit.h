@@ -176,6 +176,13 @@ class VersionEdit {
     max_column_family_ = max_column_family;
   }
 
+  bool HasLastSequence() const {
+    return has_last_sequence_;
+  }
+  SequenceNumber GetLastSequence() const {
+    return last_sequence_;
+  }
+
   // Add the specified file at the specified number.
   // REQUIRES: This version has not been saved (see VersionSet::SaveTo)
   // REQUIRES: "smallest" and "largest" are smallest and largest keys in file
