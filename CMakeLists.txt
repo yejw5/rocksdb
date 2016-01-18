@@ -82,7 +82,7 @@ set(SYSTEM_LIBS Shlwapi.lib Rpcrt4.lib)
 set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 
 add_subdirectory(third-party/gtest-1.7.0/fused-src/gtest)
-add_subdirectory(replication/src)
+add_subdirectory(replication)
 
 set(SOURCES
         db/builder.cc
