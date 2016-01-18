@@ -243,7 +243,7 @@ public:
             RPC_RRDB_RRDB_GET, 
             key,
             this,
-            [=](error_code err, read_response& resp)
+            [=](error_code err, read_response&& resp)
             {
                 end_get(err, resp, context);
             },
