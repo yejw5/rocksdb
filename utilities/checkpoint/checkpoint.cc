@@ -19,11 +19,14 @@
 #include <algorithm>
 #include <string>
 #include "db/filename.h"
+#include "db/log_writer.h"
 #include "db/wal_manager.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
 #include "rocksdb/transaction_log.h"
+#include "util/coding.h"
 #include "util/file_util.h"
+#include "util/file_reader_writer.h"
 #include "port/port.h"
 
 namespace rocksdb {
@@ -228,6 +231,83 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir) {
   return s;
 }
 
+struct LogReporter : public log::Reader::Reporter {
+  Status* status;
+  virtual void Corruption(size_t bytes, const Status& s) override {
+    if (this->status->ok()) *this->status = s;
+  }
+};
+static Status ModifyMenifestFileLastSeq(Env* env,
+                                        const DBOptions& db_options,
+                                        const std::string& file_name,
+                                        SequenceNumber last_seq) {
+  Status s;
+  EnvOptions env_options(db_options);
+  std::string tmp_file = file_name + ".tmp";
+  s = env->RenameFile(file_name, tmp_file);
+  if (!s.ok()) {
+    return s;
+  }
+  unique_ptr<SequentialFileReader> file_reader;
+  {
+    unique_ptr<SequentialFile> file;
+    s = env->NewSequentialFile(tmp_file, &file, env_options);
+    if (!s.ok()) {
+      return s;
+    }
+    file_reader.reset(new SequentialFileReader(std::move(file)));
+  }
+  unique_ptr<log::Writer> file_writer;
+  {
+    unique_ptr<WritableFile> file;
+    EnvOptions opt_env_opts = env->OptimizeForManifestWrite(env_options);
+    s = env->NewWritableFile(file_name, &file, opt_env_opts);
+    if (!s.ok()) {
+      return s;
+    }
+    file->SetPreallocationBlockSize(db_options.manifest_preallocation_size);
+    unique_ptr<WritableFileWriter> writer(
+                new WritableFileWriter(std::move(file), opt_env_opts));
+    file_writer.reset(new log::Writer(std::move(writer)));
+  }
+  {
+    LogReporter reporter;
+    reporter.status = &s;
+    log::Reader reader(std::move(file_reader), &reporter,
+                       true /*checksum*/, 0 /*initial_offset*/);
+    Slice record;
+    std::string scratch;
+    while (reader.ReadRecord(&record, &scratch) && s.ok()) {
+      VersionEdit edit;
+      s = edit.DecodeFrom(record);
+      if (!s.ok()) {
+        break;
+      }
+      if (edit.HasLastSequence() && edit.GetLastSequence() > last_seq) {
+        edit.SetLastSequence(last_seq);
+      }
+      std::string write_record;
+      if (!edit.EncodeTo(&write_record)) {
+        s = Status::Corruption("Unable to Encode VersionEdit");
+        break;
+      }
+      s = file_writer->AddRecord(write_record);
+      if (!s.ok()) {
+        break;
+      }
+    }
+  }
+  if (s.ok()) {
+    s = SyncManifest(env, &db_options, file_writer->file());
+  }
+  file_reader.reset();
+  file_writer.reset();
+  if (s.ok()) {
+    env->DeleteFile(tmp_file);
+  }
+  return s;
+}
+
 Status CheckpointImpl::CreateCheckpointQuick(const std::string& checkpoint_dir,
                                              SequenceNumber* sequence,
                                              uint64_t* decree) {
@@ -265,6 +345,7 @@ Status CheckpointImpl::CreateCheckpointQuick(const std::string& checkpoint_dir,
   }
 
   std::string full_private_path = checkpoint_dir + ".tmp";
+  std::string manifest_file_path;
 
   // create snapshot directory
   s = db_->GetEnv()->CreateDir(full_private_path);
@@ -303,11 +384,21 @@ Status CheckpointImpl::CreateCheckpointQuick(const std::string& checkpoint_dir,
                    full_private_path + src_fname,
                    (type == kDescriptorFile) ? manifest_file_size : 0);
     }
+    if (type == kDescriptorFile) {
+      manifest_file_path = full_private_path + src_fname;
+    }
   }
 
   // we copied all the files, enable file deletions
   db_->EnableFileDeletions(false);
 
+  if (s.ok()) {
+    // modify menifest file to set correct last_seq in VersionEdit, because
+    // the last_seq recorded in menifest may be greater than the real value
+    assert(!manifest_file_path.empty());
+    s = ModifyMenifestFileLastSeq(db_->GetEnv(), db_->GetOptions(),
+                                  manifest_file_path, last_sequence);
+  }
   if (s.ok()) {
     // move tmp private backup to real snapshot directory
     s = db_->GetEnv()->RenameFile(full_private_path, checkpoint_dir);
