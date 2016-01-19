@@ -30,11 +30,15 @@ endif()
 
 set(MY_PROJ_LIB_PATH "../..")
 
-# Extra files that will be installed
-set(MY_BINPLACES 
-    "${CMAKE_CURRENT_SOURCE_DIR}/config.ini" "${CMAKE_CURRENT_SOURCE_DIR}/test.cmd"
-    "${CMAKE_CURRENT_SOURCE_DIR}/vconfig.ini" "${CMAKE_CURRENT_SOURCE_DIR}/vtest.cmd"
+file(GLOB
+    RES_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.ini"
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.sh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/*.cmd"
     )
+
+# Extra files that will be installed
+set(MY_BINPLACES ${RES_FILES})
 
 # Copy libdsn.core.so and set rpath, to make rrdb use dsn shared lib in local directory.
 if (UNIX)
