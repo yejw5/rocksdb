@@ -32,7 +32,7 @@ if [ -z "$BOOST_DIR" ]; then
 fi
 
 version=$1
-sh ./build.sh
+BUILD_TYPE=release bash ./build.sh
 
 # create pack folder
 pack_folder="pegasus-""$version"
@@ -44,6 +44,10 @@ mkdir "$pack_folder"
 # copy pegasus binaries
 mkdir "$pack_folder""/bin"
 cp builder/bin/rrdb/rrdb "$pack_folder""/bin"
+cp client_lib/sample/rrdb_sample "$pack_folder""/bin"
+cp client_lib/sample/config.ini "$pack_folder""/bin"
+cp ../../rDSN/install/bin/dsn.ddlclient/dsn.ddlclient "$pack_folder""/bin"
+cp ../rrdb_bench "$pack_folder""/bin"
 
 # copy tool chain
 mkdir "$pack_folder""/toolchain"
@@ -57,13 +61,14 @@ cp -r "$GLIBC_DIR" "$pack_folder""/toolchain"
 mkdir "$pack_folder""/core"
 boost_dir="$BOOST_DIR""/lib"
 cp "$boost_dir"/* "$pack_folder""/core"
+cp builder/lib/librrdb.clientlib.so "$pack_folder""/core"
 
 # copy dsn core lib
-cp "../../../rDSN/install/lib/libdsn.core.so" "$pack_folder""/core"
+cp "../../rDSN/install/lib/libdsn.core.so" "$pack_folder""/core"
 
 # copy shm counter binary
 mkdir "$pack_folder""/shmcounter"
-cp -r ../ext/shmcounter/bin/* "$pack_folder""/shmcounter"
+cp -r ext/shmcounter/bin/* "$pack_folder""/shmcounter"
 
 pack_file="pegasus-""$version"".tar.gz"
 
