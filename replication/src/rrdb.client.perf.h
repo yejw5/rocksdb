@@ -1,17 +1,15 @@
 # pragma once
-
 # include "rrdb.client.h"
 
-namespace dsn { namespace apps { class rrdb_perf_test_client
-    : public rrdb_client, public ::dsn::service::perf_client_helper
+namespace dsn { namespace apps {  
+
+ 
+class rrdb_perf_test_client 
+    : public rrdb_client, 
+      public ::dsn::service::perf_client_helper 
 {
 public:
-    rrdb_perf_test_client(
-        const std::vector< ::dsn::rpc_address>& meta_servers,
-        const char* app_name)
-        : rrdb_client(meta_servers, app_name)
-    {
-    }
+    using rrdb_client::rrdb_client;
 
     void start_test()
     {
@@ -65,17 +63,17 @@ public:
         while (writer.total_size() < payload_bytes)
             writer.write(req.key);
         req.value = writer.get_buffer();
-
-        begin_put(req, ctx, _timeout_ms);
+        
+        put(
+            req,
+            [this, context = prepare_send_one()](error_code err, int&& resp)
+            {
+                end_send_one(context, err);
+            },
+            _timeout
+            );
     }
 
-    virtual void end_put(
-        ::dsn::error_code err,
-        const int& resp,
-        void* context) override
-    {
-        end_send_one(context, err);
-    }
 
     void send_one_remove(int payload_bytes)
     {
@@ -87,17 +85,17 @@ public:
         writer.write("key.", 4);
         writer.write(rs);
         req = writer.get_buffer();
-        
-        begin_remove(req, ctx, _timeout_ms);
+                
+        remove(
+            req,
+            [this, context = prepare_send_one()](error_code err, int&& resp)
+            {
+                end_send_one(context, err);
+            },
+            _timeout
+            );
     }
 
-    virtual void end_remove(
-        ::dsn::error_code err,
-        const int& resp,
-        void* context) override
-    {
-        end_send_one(context, err);
-    }
 
     void send_one_merge(int payload_bytes)
     {
@@ -113,17 +111,17 @@ public:
         while (writer.total_size() < payload_bytes)
             writer.write(req.key);
         req.value = writer.get_buffer();
-        
-        begin_merge(req, ctx, _timeout_ms);
+
+        merge(
+            req,
+            [this, context = prepare_send_one()](error_code err, int&& resp)
+            {
+                end_send_one(context, err);
+            },
+            _timeout
+            );
     }
 
-    virtual void end_merge(
-        ::dsn::error_code err,
-        const int& resp,
-        void* context) override
-    {
-        end_send_one(context, err);
-    }
 
     void send_one_get(int payload_bytes)
     {
@@ -136,16 +134,16 @@ public:
         writer.write(rs);
         req = writer.get_buffer();
         
-        begin_get(req, ctx, _timeout_ms);
+        get(
+            req,
+            [this, context = prepare_send_one()](error_code err, read_response&& resp)
+            {
+                end_send_one(context, err);
+            },
+            _timeout
+            );
     }
 
-    virtual void end_get(
-        ::dsn::error_code err,
-        const read_response& resp,
-        void* context) override
-    {
-        end_send_one(context, err);
-    }
 };
 
 } } 
