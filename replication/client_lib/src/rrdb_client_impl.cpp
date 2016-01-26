@@ -45,9 +45,8 @@ int rrdb_client_impl::set(
     update_request req;
     generate_key(req.key, hash_key, sort_key);
     req.value.assign(value.c_str(), 0, value.size());
-    int resp;
-    error_code err = _client.put(req, resp, timeout_milliseconds);
-    return get_client_error(err == ERR_OK ? get_rocksdb_server_error(resp) : err.get());
+    auto pr = _client.put_sync(req, std::chrono::milliseconds(timeout_milliseconds));
+    return get_client_error(pr.first == ERR_OK ? get_rocksdb_server_error(pr.second) : pr.first.get());
 }
 
 
@@ -64,11 +63,10 @@ int rrdb_client_impl::get(
 
     dsn::blob req;
     generate_key(req, hash_key, sort_key);
-    read_response resp;
-    error_code err = _client.get(req, resp, timeout_milliseconds);
-    if(err == ERR_OK)
-        value.assign(resp.value);
-    return get_client_error(err == ERR_OK ? get_rocksdb_server_error(resp.error) : err.get());
+    auto pr = _client.get_sync(req, std::chrono::milliseconds(timeout_milliseconds));
+    if(pr.first == ERR_OK)
+        value.assign(pr.second.value);
+    return get_client_error(pr.first == ERR_OK ? get_rocksdb_server_error(pr.second.error) : pr.first.get());
 }
 
 int rrdb_client_impl::del(
@@ -83,9 +81,8 @@ int rrdb_client_impl::del(
 
     dsn::blob req;
     generate_key(req, hash_key, sort_key);
-    int resp;
-    error_code err = _client.remove(req, resp, timeout_milliseconds);
-    return get_client_error(err == ERR_OK ? get_rocksdb_server_error(resp) : err.get());
+    auto pr = _client.remove_sync(req, std::chrono::milliseconds(timeout_milliseconds));
+    return get_client_error(pr.first == ERR_OK ? get_rocksdb_server_error(pr.second) : pr.first.get());
 }
 
 const char* rrdb_client_impl::get_error_string(int error_code) const
