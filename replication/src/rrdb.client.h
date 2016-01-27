@@ -134,7 +134,7 @@ public:
     std::pair<::dsn::error_code, read_response> get_sync(
         const ::dsn::blob& key,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(0), 
-        ::dsn::replication::read_semantic_t read_semantic = ::dsn::replication::read_semantic_t::ReadLastUpdate        )
+        ::dsn::replication::read_semantic read_semantic = ::dsn::replication::read_semantic::ReadLastUpdate        )
     {
         return dsn::rpc::wait_and_unwrap<read_response>(
             ::dsn::replication::replication_app_client_base::read(
@@ -156,7 +156,7 @@ public:
         TCallback&& callback,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(0),
         int reply_hash = 0,  
-        ::dsn::replication::read_semantic_t read_semantic = ::dsn::replication::read_semantic_t::ReadLastUpdate        )
+        ::dsn::replication::read_semantic read_semantic = ::dsn::replication::read_semantic::ReadLastUpdate        )
     {
         return ::dsn::replication::replication_app_client_base::read(
             get_key_hash(key),
