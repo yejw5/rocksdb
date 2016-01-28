@@ -23,7 +23,7 @@ function usage()
     echo "   stop_onebox    stop rrdb onebox"
     echo "   list_onebox    list rrdb onebox"
     echo "   clear_onebox   clear_rrdb onebox"
-    echo "   run_bench      run benchmark test"
+    echo "   bench          benchmark test"
     echo
     echo "Command 'run.sh <command> -h' will print help for subcommands."
 }
@@ -258,11 +258,11 @@ function run_clear_onebox()
 }
 
 #####################
-## run_bench
+## bench
 #####################
-function usage_run_bench()
+function usage_bench()
 {
-    echo "Options for subcommand 'run_bench':"
+    echo "Options for subcommand 'bench':"
     echo "   -h|--help            print the help info"
     echo "   -c|--config <path>   config file path, default './replication/config-client.ini'"
     echo "   -t|--type            benchmark type, supporting:"
@@ -270,6 +270,7 @@ function usage_run_bench()
     echo "                          readrandom_rrdb, deleteseq_rrdb, deleterandom_rrdb"
     echo "                        default is 'fillseq_rrdb,readrandom_rrdb'"
     echo "   -n <num>             number of key/value pairs, default 100000"
+    echo "   --app_name <num>     app name, default 'rrdb.instance0'"
     echo "   --thread_num <num>   number of threads, default 1"
     echo "   --key_size <num>     key size, default 16"
     echo "   --value_size <num>   value size, default 100"
@@ -281,6 +282,7 @@ function run_bench()
     CONFIG=./replication/config-client.ini
     TYPE=fillseq_rrdb,readrandom_rrdb
     NUM=100000
+    APP=rrdb.instance0
     THREAD=1
     KEY_SIZE=16
     VALUE_SIZE=100
@@ -289,7 +291,7 @@ function run_bench()
         key="$1"
         case $key in
             -h|--help)
-                usage_run_bench
+                usage_bench
                 exit 0
                 ;;
             -c|--config)
@@ -302,6 +304,10 @@ function run_bench()
                 ;;
             -n)
                 NUM="$2"
+                shift
+                ;;
+            --app_name)
+                APP="$2"
                 shift
                 ;;
             --thread_num)
@@ -323,7 +329,7 @@ function run_bench()
             *)
                 echo "ERROR: unknown option \"$key\""
                 echo
-                usage_run_bench
+                usage_bench
                 exit -1
                 ;;
         esac
@@ -332,7 +338,7 @@ function run_bench()
 
     ./rrdb_bench --rrdb_config=${CONFIG} --benchmarks=${TYPE} --rrdb_timeout_ms=${TIMEOUT_MS} \
         --key_size=${KEY_SIZE} --value_size=${VALUE_SIZE} --threads=${THREAD} --num=${NUM} \
-        --rrdb_app_name=rrdb.instance0 --stats_interval=1000 --histogram=1 \
+        --rrdb_app_name=${APP} --stats_interval=1000 --histogram=1 \
         --compression_type=none --compression_ratio=1.0
 }
 
@@ -367,7 +373,7 @@ case $cmd in
         shift
         run_list_onebox $*
         ;;
-    run_bench)
+    bench)
         shift
         run_bench $*
         ;;
