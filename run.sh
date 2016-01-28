@@ -48,6 +48,7 @@ function run_build()
 {
     BUILD_TYPE="debug"
     CLEAR=NO
+    PART_CLEAR=NO
     BOOST_DIR=""
     WARNING_ALL=NO
     ENABLE_GCOV=NO
@@ -66,6 +67,9 @@ function run_build()
                 ;;
             -c|--clear)
                 CLEAR=YES
+                ;;
+            -cc|--part_clear)
+                PART_CLEAR=YES
                 ;;
             -b|--boost_dir)
                 BOOST_DIR="$2"
@@ -96,7 +100,7 @@ function run_build()
         exit -1
     fi
 
-    cd replication; BUILD_TYPE="$BUILD_TYPE" CLEAR="$CLEAR" \
+    cd replication; BUILD_TYPE="$BUILD_TYPE" CLEAR="$CLEAR" PART_CLEAR="$PART_CLEAR" \
         BOOST_DIR="$BOOST_DIR" WARNING_ALL="$WARNING_ALL" ENABLE_GCOV="$ENABLE_GCOV" \
         RUN_VERBOSE="$RUN_VERBOSE" TEST_MODULE="$TEST_MODULE" ./build.sh
 }
