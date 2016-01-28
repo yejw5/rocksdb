@@ -2,6 +2,7 @@
 #
 # Shell Options:
 #    CLEAR          YES|NO
+#    PART_CLEAR     YES|NO
 #    BUILD_TYPE     debug|release
 #    RUN_VERBOSE    YES|NO
 #    WARNING_ALL    YES|NO
@@ -27,6 +28,13 @@ then
     echo "CLEAR=YES"
 else
     echo "CLEAR=NO"
+fi
+
+if [ "$PART_CLEAR" == "YES" ]
+then
+    echo "PART_CLEAR=YES"
+else
+    echo "PART_CLEAR=NO"
 fi
 
 if [ "$BUILD_TYPE" == "debug" ]
@@ -96,9 +104,16 @@ fi
 
 if [ "$CLEAR" == "YES" ]
 then
-    echo "Clear..."
+    echo "Clear librocksdb.a ..."
     rm -rf $BUILD_DIR
     make -C .. clean
+fi
+
+if [ "$CLEAR" == "YES" -o "$PART_CLEAR" == "YES" ]
+then
+    echo "Clear $BUILD_DIR ..."
+    rm -rf $BUILD_DIR
+    rm -f ../rrdb_bench
 fi
 
 make -C .. static_lib_$BUILD_TYPE $MAKE_OPTIONS
