@@ -30,6 +30,8 @@ endif()
 
 set(MY_PROJ_LIB_PATH "../..")
 
+set(MY_BOOST_PACKAGES system)
+
 file(GLOB
     RES_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/*.ini"
