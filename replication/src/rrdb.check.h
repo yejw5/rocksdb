@@ -1,4 +1,4 @@
-
+# pragma once
 # include <dsn/tool/global_checker.h>
 
 namespace dsn { namespace apps {  
