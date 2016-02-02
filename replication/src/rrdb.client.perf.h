@@ -50,11 +50,17 @@ public:
     void send_one_put(int payload_bytes, int key_space_size)
     {
         update_request req;
-        // TODO: randomize the value of req
-        // auto rs = random64(0, 10000000) % key_space_size;
-        // std::stringstream ss;
-        // ss << "key." << rs;
-        // req = ss.str();
+        
+        auto rs = random64(0, 10000000) % key_space_size;
+        binary_writer writer(payload_bytes < 128 ? 128 : payload_bytes);
+        writer.write("key.", 4);
+        writer.write(rs);
+        req.key = writer.get_buffer();
+
+        while (writer.total_size() < payload_bytes)
+            writer.write(req.key);
+        req.value = writer.get_buffer();
+        
         put(
             req,
             [this, context = prepare_send_one()](error_code err, int&& resp)
@@ -68,11 +74,13 @@ public:
     void send_one_remove(int payload_bytes, int key_space_size)
     {
         ::dsn::blob req;
-        // TODO: randomize the value of req
-        // auto rs = random64(0, 10000000) % key_space_size;
-        // std::stringstream ss;
-        // ss << "key." << rs;
-        // req = ss.str();
+
+        auto rs = random64(0, 10000000) % key_space_size;
+        binary_writer writer;
+        writer.write("key.", 4);
+        writer.write(rs);
+        req = writer.get_buffer();
+                
         remove(
             req,
             [this, context = prepare_send_one()](error_code err, int&& resp)
@@ -86,11 +94,17 @@ public:
     void send_one_merge(int payload_bytes, int key_space_size)
     {
         update_request req;
-        // TODO: randomize the value of req
-        // auto rs = random64(0, 10000000) % key_space_size;
-        // std::stringstream ss;
-        // ss << "key." << rs;
-        // req = ss.str();
+
+        auto rs = random64(0, 10000000) % key_space_size;
+        binary_writer writer(payload_bytes < 128 ? 128 : payload_bytes);
+        writer.write("key.", 4);
+        writer.write(rs);
+        req.key = writer.get_buffer();
+
+        while (writer.total_size() < payload_bytes)
+            writer.write(req.key);
+        req.value = writer.get_buffer();
+
         merge(
             req,
             [this, context = prepare_send_one()](error_code err, int&& resp)
@@ -104,11 +118,13 @@ public:
     void send_one_get(int payload_bytes, int key_space_size)
     {
         ::dsn::blob req;
-        // TODO: randomize the value of req
-        // auto rs = random64(0, 10000000) % key_space_size;
-        // std::stringstream ss;
-        // ss << "key." << rs;
-        // req = ss.str();
+
+        auto rs = random64(0, 10000000) % key_space_size;
+        binary_writer writer;
+        writer.write("key.", 4);
+        writer.write(rs);
+        req = writer.get_buffer();
+        
         get(
             req,
             [this, context = prepare_send_one()](error_code err, read_response&& resp)
