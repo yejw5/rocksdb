@@ -137,6 +137,7 @@ function run_start_onebox()
         exit -1
     fi
     run_clear_onebox
+    sed "s/@LOCAL_IP@/`hostname -i`/" ${ROOT}/replication/config-server.ini >${ROOT}/config-server.ini
     echo "starting server"
     mkdir onebox
     cd onebox
@@ -145,7 +146,8 @@ function run_start_onebox()
         mkdir meta$i;
         cd meta$i
         ln -s ${DSN_ROOT}/bin/rrdb/rrdb rrdb
-        ln -s ${ROOT}/replication/config-server.ini config.ini
+        ln -s ${ROOT}/config-server.ini config.ini
+        echo "cd `pwd` && ./rrdb config.ini -app_list meta@$i &>result &"
         ./rrdb config.ini -app_list meta@$i &>result &
         PID=$!
         ps -ef | grep rrdb | grep $PID
@@ -156,7 +158,8 @@ function run_start_onebox()
         mkdir replica$j
         cd replica$j
         ln -s ${DSN_ROOT}/bin/rrdb/rrdb rrdb
-        ln -s ${ROOT}/replication/config-server.ini config.ini
+        ln -s ${ROOT}/config-server.ini config.ini
+        echo "cd `pwd` && ./rrdb config.ini -app_list replica@$j &>result &"
         ./rrdb config.ini -app_list replica@$j &>result &
         PID=$!
         ps -ef | grep rrdb | grep $PID
@@ -253,7 +256,7 @@ function run_clear_onebox()
     done
     run_stop_onebox
     if [ -d onebox ]; then
-        rm -rf onebox
+        rm -rf onebox config-server.ini config-client.ini &>/dev/null
     fi
 }
 
@@ -279,7 +282,7 @@ function usage_bench()
 
 function run_bench()
 {
-    CONFIG=./replication/config-client.ini
+    CONFIG=${ROOT}/config-client.ini
     TYPE=fillseq_rrdb,readrandom_rrdb
     NUM=100000
     APP=rrdb.instance0
@@ -335,6 +338,8 @@ function run_bench()
         esac
         shift
     done
+
+    sed "s/@LOCAL_IP@/`hostname -i`/" ${ROOT}/replication/config-client.ini >${CONFIG}
 
     ./rrdb_bench --rrdb_config=${CONFIG} --benchmarks=${TYPE} --rrdb_timeout_ms=${TIMEOUT_MS} \
         --key_size=${KEY_SIZE} --value_size=${VALUE_SIZE} --threads=${THREAD} --num=${NUM} \
