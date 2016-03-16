@@ -1,4 +1,5 @@
 # pragma once
+# include <dsn/service_api_cpp.h>
 
 //
 // uncomment the following line if you want to use 
@@ -9,8 +10,6 @@
 // !!! WARNING: not feasible for replicated service yet!!! 
 //
 // # define DSN_NOT_USE_DEFAULT_SERIALIZATION
-
-# include <dsn/service_api_cpp.h>
 
 # ifdef DSN_NOT_USE_DEFAULT_SERIALIZATION
 
