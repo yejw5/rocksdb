@@ -17,40 +17,6 @@
 # include <dsn/thrift_helper.h>
 # include "rrdb_types.h" 
 
-namespace dsn { namespace apps { 
-    // ---------- update_request -------------
-    inline void marshall(::dsn::binary_writer& writer, const update_request& val)
-    {
-        boost::shared_ptr< ::dsn::binary_writer_transport> transport(new ::dsn::binary_writer_transport(writer));
-        ::apache::thrift::protocol::TBinaryProtocol proto(transport);
-        ::dsn::marshall_rpc_args<update_request>(&proto, val, &update_request::write);
-    };
-
-    inline void unmarshall(::dsn::binary_reader& reader, /*out*/ update_request& val)
-    {
-        boost::shared_ptr< ::dsn::binary_reader_transport> transport(new ::dsn::binary_reader_transport(reader));
-        ::apache::thrift::protocol::TBinaryProtocol proto(transport);
-        ::dsn::unmarshall_rpc_args<update_request>(&proto, val, &update_request::read);
-    };
-
-    // ---------- read_response -------------
-    inline void marshall(::dsn::binary_writer& writer, const read_response& val)
-    {
-        boost::shared_ptr< ::dsn::binary_writer_transport> transport(new ::dsn::binary_writer_transport(writer));
-        ::apache::thrift::protocol::TBinaryProtocol proto(transport);
-        ::dsn::marshall_rpc_args<read_response>(&proto, val, &read_response::write);
-    };
-
-    inline void unmarshall(::dsn::binary_reader& reader, /*out*/ read_response& val)
-    {
-        boost::shared_ptr< ::dsn::binary_reader_transport> transport(new ::dsn::binary_reader_transport(reader));
-        ::apache::thrift::protocol::TBinaryProtocol proto(transport);
-        ::dsn::unmarshall_rpc_args<read_response>(&proto, val, &read_response::read);
-    };
-
-} } 
-
-
 # else // use rDSN's data encoding/decoding
 
 namespace dsn { namespace apps { 

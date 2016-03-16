@@ -11,16 +11,15 @@ struct update_request
 
 struct read_response
 {
-    1:int      error;
+    1:i32      error;
     2:string   value;
 }
 
 service rrdb
 {
-    int put(1:update_request update);
-    int remove(1:dsn.blob key);
-    int merge(1:update_request update);
+    i32 put(1:update_request update);
+    i32 remove(1:dsn.blob key);
+    i32 merge(1:update_request update);
     read_response get(1:dsn.blob key);
 }
-
 

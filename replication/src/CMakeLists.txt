@@ -20,6 +20,7 @@ set(MY_PROJ_LIBS
     dsn.failure_detector
     dsn.replication.zookeeper_provider 
     zookeeper_mt
+    thrift
     )
 
 if (UNIX)
@@ -44,7 +45,7 @@ set(MY_BINPLACES ${RES_FILES})
 if (UNIX)
     SET(CMAKE_INSTALL_RPATH ".")
     SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so")
+    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so" "${DSN_ROOT}/lib/libthrift.so")
 endif()
 
 dsn_add_executable()
