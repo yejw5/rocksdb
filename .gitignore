@@ -68,3 +68,8 @@ java/javadoc
 scan_build_report/
 t
 LOG
+rrdb.config
+rrdb.creator
+rrdb.creator.user
+rrdb.files
+rrdb.includes
