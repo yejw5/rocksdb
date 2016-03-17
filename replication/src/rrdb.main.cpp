@@ -2,7 +2,8 @@
 # include "rrdb.app.example.h"
 # include "rrdb.server.impl.h"
 # include "rrdb.check.h"
-# include "pegasus.profiler.h"
+# include "pegasus.perf_counter.h"
+# include "pegasus_owl_updater.h"
 
 int main(int argc, char** argv)
 {
@@ -16,7 +17,11 @@ int main(int argc, char** argv)
     dsn::register_app< ::dsn::apps::rrdb_perf_test_client_app>("client.perf");
 
     // register pegasus profiler
-    dsn::tools::register_toollet<::dsn::apps::pegasus_profiler>("pegasus_profiler");
+    ::dsn::tools::internal_use_only::register_component_provider(
+        "pegasus::tools::pegasus_perf_counter",
+        pegasus::tools::pegasus_perf_counter_factory,
+        PROVIDER_TYPE_MAIN
+        );
 
     // register global checker if necesary
     dsn_register_app_checker("rrdb.checker",
@@ -26,5 +31,6 @@ int main(int argc, char** argv)
 
     // specify what services and tools will run in config file, then run
     dsn_run(argc, argv, true);
+
     return 0;
 }

@@ -20,6 +20,8 @@ set(MY_PROJ_LIBS
     dsn.replication.zookeeper_provider 
     zookeeper_mt
     shmcounter
+    event
+    boost_system
     )
 
 if (UNIX)
