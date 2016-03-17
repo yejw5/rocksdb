@@ -43,6 +43,7 @@ namespace pegasus{ namespace tools{
 
 pegasus_owl_updater::pegasus_owl_updater()
 {
+    dinfo("pegasus_owl_updater::pegasus_owl_updater");
     _meta.active = dsn_config_get_value_bool("pegasus.owl", "info_active", true, "meta_active");
     _meta.cluster = dsn_config_get_value_string("pegasus.owl", "info_cluster", "", "meta_cluster");
     dassert(_meta.cluster.size() > 0, "");
@@ -53,8 +54,8 @@ pegasus_owl_updater::pegasus_owl_updater()
     _meta.port = dsn_config_get_value_uint64("pegasus.owl", "info_port", 0, "meta_port");
     _meta.service = dsn_config_get_value_string("pegasus.owl", "info_service", "", "meta_service");
     dassert(_meta.service.size() > 0, "");
-    _meta.version = dsn_config_get_value_string("pegasus.owl", "info_service", "", "meta_service");
-    dassert(_meta.service.size() > 0, "");
+    _meta.version = dsn_config_get_value_string("pegasus.owl", "info_version", "", "meta_version");
+    dassert(_meta.version.size() > 0, "");
 
     char temp[20];
     sprintf(temp, "%s:%d", _meta.host.c_str(), _meta.port);
@@ -91,11 +92,13 @@ pegasus_owl_updater::pegasus_owl_updater()
 
 pegasus_owl_updater::~pegasus_owl_updater()
 {
+    dinfo("pegasus_owl_updater::~pegasus_owl_updater");
     _timer->cancel();
 }
 
 bool pegasus_owl_updater::register_handler(perf_counter *pc)
 {
+    dinfo("pegasus_owl_updater::register_handler, %s", pc->full_name());
     utils::auto_write_lock l(_lock);
     auto it = _perf_counters.find(pc);
     if (it == _perf_counters.end() )
@@ -122,6 +125,7 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 
 void pegasus_owl_updater::update()
 {
+    dinfo("pegasus_owl_updater::update");
     if(_flag.test_and_set())
         return;
     perf_counter_map tmp_map;
@@ -192,6 +196,7 @@ void pegasus_owl_updater::update_owl(std::string buff)
 
 void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *arg)
 {
+    dinfo("pegasus_owl_updater::http_request_done");
     struct event_base* event = (struct event_base*)arg;
     switch(req->response_code)
     {
@@ -217,6 +222,7 @@ void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *ar
 
 void pegasus_owl_updater::on_timer(std::shared_ptr<boost::asio::deadline_timer> timer, const boost::system::error_code& ec)
 {
+    dinfo("pegasus_owl_updater::on_timer");
     //as the callback is not in tls context, so the log system calls like ddebug, dassert will cause a lock
     if (!ec)
     {
