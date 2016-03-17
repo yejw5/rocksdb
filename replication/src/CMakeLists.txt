@@ -21,6 +21,8 @@ set(MY_PROJ_LIBS
     zookeeper_mt
     thrift
     shmcounter
+    event
+    boost_system
     )
 
 if (UNIX)
