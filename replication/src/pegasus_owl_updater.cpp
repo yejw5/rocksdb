@@ -96,8 +96,8 @@ pegasus_owl_updater::~pegasus_owl_updater()
 
 bool pegasus_owl_updater::register_handler(perf_counter *pc)
 {
-    utils::auto_write_lock l(_lock);
     dinfo("register owl handler, %s", pc->full_name());
+    utils::auto_write_lock l(_lock);
     auto it = _perf_counters.find(pc);
     if (it == _perf_counters.end() )
     {
@@ -149,6 +149,11 @@ void pegasus_owl_updater::update()
             kvp.first->add_ref();
             tmp_map.insert(kvp);
         }
+    }
+    if(tmp_map.size() == 0)
+    {
+        dinfo("no owl update needed");
+        return;
     }
 
     owl_report_info info;
@@ -220,18 +225,20 @@ void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *ar
     case HTTP_OK:
         {
             dinfo("owl http_request_done OK");
-            //struct evbuffer* buf = evhttp_request_get_input_buffer(req);
-            //size_t len = evbuffer_get_length(buf);
-            //char *tmp = (char*)malloc(len+1);
-            //memcpy(tmp, evbuffer_pullup(buf, -1), len);
-            //tmp[len] = '\0';
-            //free(tmp);
             event_base_loopexit(event, 0);
         }
         break;
 
     default:
         derror("owl update receive ERROR: %u", req->response_code);
+
+        struct evbuffer* buf = evhttp_request_get_input_buffer(req);
+        size_t len = evbuffer_get_length(buf);
+        char *tmp = (char*)malloc(len+1);
+        memcpy(tmp, evbuffer_pullup(buf, -1), len);
+        tmp[len] = '\0';
+        derror("owl update receive ERROR: %u, %s", req->response_code, tmp);
+        free(tmp);
         event_base_loopexit(event, 0);
         return;
     }
