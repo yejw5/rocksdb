@@ -66,18 +66,25 @@ public:
         {
             _val[i] = 0;
         }
-        bool ret = dsn_config_get_value_bool("pegasus", "enable_owl_perf_counter", true, "enable_owl_perf_counter");
-        if(ret)
+        _enable_falcon = dsn_config_get_value_bool("pegasus", "enable_falcon_perf_counter", true, "enable_falcon_perf_counter");
+
+        _enable_owl = dsn_config_get_value_bool("pegasus", "enable_owl_perf_counter", true, "enable_owl_perf_counter");
+        if(_enable_owl)
         {
             pegasus_owl_updater::instance().register_handler(this);
         }
-        _enable_falcon = dsn_config_get_value_bool("pegasus", "enable_falcon_perf_counter", true, "enable_falcon_perf_counter");
     }
-    ~pegasus_perf_counter_number_fast(void) {}
+
+    ~pegasus_perf_counter_number_fast(void)
+    {
+        if(_enable_owl)
+        {
+            pegasus_owl_updater::instance().unregister_handler(this);
+        }
+    }
 
     virtual void increment()
     {
-        dinfo("pegasus_perf_counter_number_fast::increment");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER]++;
         if(_enable_falcon)
@@ -87,7 +94,6 @@ public:
     }
     virtual void decrement()
     {
-        dinfo("pegasus_perf_counter_number_fast::decrement");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER]--;
         if(_enable_falcon)
@@ -97,7 +103,6 @@ public:
     }
     virtual void add(uint64_t val)
     {
-        dinfo("pegasus_perf_counter_number_fast::add");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER] += val;
         if(_enable_falcon)
@@ -107,7 +112,6 @@ public:
     }
     virtual void set(uint64_t val)
     {
-        dinfo("pegasus_perf_counter_number_fast::set");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER] = val;
         if(_enable_falcon)
@@ -117,7 +121,6 @@ public:
     }
     virtual double get_value()
     {
-        dinfo("pegasus_perf_counter_number_fast::get_value");
         double val = 0;
         for (int i = 0; i < DIVIDE_CONTAINER; i++)
         {
@@ -127,7 +130,6 @@ public:
     }
     virtual uint64_t get_integer_value()
     {
-        dinfo("pegasus_perf_counter_number_fast::get_integer_value");
         uint64_t val = 0;
         for (int i = 0; i < DIVIDE_CONTAINER; i++)
         {
@@ -137,13 +139,13 @@ public:
     }
     virtual double get_percentile(dsn_perf_counter_percentile_type_t type)
     {
-        dinfo("pegasus_perf_counter_number_fast::get_percentile");
         dassert(false, "invalid execution flow"); return 0.0;
     }
 
 private:
-    uint64_t              _val[DIVIDE_CONTAINER];
-    bool                  _enable_falcon;
+    uint64_t    _val[DIVIDE_CONTAINER];
+    bool        _enable_falcon;
+    bool        _enable_owl;
 };
 
 // -----------   RATE perf counter ---------------------------------
@@ -154,24 +156,29 @@ public:
     pegasus_perf_counter_rate_fast(const char* app, const char *section, const char *name, dsn_perf_counter_type_t type, const char *dsptr)
         : perf_counter(app, section, name, type, dsptr), _rate(0)
     {
-        dinfo("pegasus_perf_counter_rate_fast::pegasus_perf_counter_rate_fast");
         _last_time = ::dsn::utils::get_current_physical_time_ns();
         for (int i = 0; i < DIVIDE_CONTAINER; i++)
         {
             _val[i] = 0;
         }
-        bool ret = dsn_config_get_value_bool("pegasus", "enable_owl_perf_counter", true, "enable_owl_perf_counter");
-        if(ret)
+        _enable_falcon = dsn_config_get_value_bool("pegasus", "enable_falcon_perf_counter", true, "enable_falcon_perf_counter");
+
+        _enable_owl = dsn_config_get_value_bool("pegasus", "enable_owl_perf_counter", true, "enable_owl_perf_counter");
+        if(_enable_owl)
         {
             pegasus_owl_updater::instance().register_handler(this);
         }
-        _enable_falcon = dsn_config_get_value_bool("pegasus", "enable_falcon_perf_counter", true, "enable_falcon_perf_counter");
     }
-    ~pegasus_perf_counter_rate_fast(void) {}
+    ~pegasus_perf_counter_rate_fast(void)
+    {
+        if(_enable_owl)
+        {
+            pegasus_owl_updater::instance().unregister_handler(this);
+        }
+    }
 
     virtual void increment()
     {
-        dinfo("pegasus_perf_counter_rate_fast::increment");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER]++;
         if(_enable_falcon)
@@ -182,7 +189,6 @@ public:
     }
     virtual void decrement()
     {
-        dinfo("pegasus_perf_counter_rate_fast::decrement");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER]--;
         if(_enable_falcon)
@@ -192,7 +198,6 @@ public:
     }
     virtual void add(uint64_t val)
     {
-        dinfo("pegasus_perf_counter_rate_fast::add");
         uint64_t task_id = static_cast<int>(::dsn::utils::get_current_tid());
         _val[task_id % DIVIDE_CONTAINER] += val;
         if(_enable_falcon)
@@ -203,7 +208,6 @@ public:
     virtual void   set(uint64_t val) { dassert(false, "invalid execution flow"); }
     virtual double get_value()
     {
-        dinfo("pegasus_perf_counter_rate_fast::get_value");
         double val = 0;
         for (int i = 0; i < DIVIDE_CONTAINER; i++)
         {
@@ -226,7 +230,6 @@ public:
     }
     virtual uint64_t get_integer_value()
     {
-        dinfo("pegasus_perf_counter_rate_fast::get_integer_value");
         return (uint64_t)get_value(); }
     virtual double get_percentile(dsn_perf_counter_percentile_type_t type)
     {
@@ -238,6 +241,7 @@ private:
     std::atomic<uint64_t>   _last_time;
     uint64_t                _val[DIVIDE_CONTAINER];
     bool                    _enable_falcon;
+    bool                    _enable_owl;
 };
 
 
@@ -255,7 +259,6 @@ public:
     pegasus_perf_counter_number_percentile_fast(const char* app, const char *section, const char *name, dsn_perf_counter_type_t type, const char *dsptr)
         : perf_counter(app, section, name, type, dsptr)
     {
-        dinfo("pegasus_perf_counter_number_percentile_fast::pegasus_perf_counter_number_percentile_fast");
         _results[COUNTER_PERCENTILE_50] = 0;
         _results[COUNTER_PERCENTILE_90] = 0;
         _results[COUNTER_PERCENTILE_95] = 0;
@@ -273,17 +276,21 @@ public:
         this->add_ref();
         _timer->async_wait(std::bind(&pegasus_perf_counter_number_percentile_fast::on_timer, this, _timer, std::placeholders::_1));
 
-        bool ret = dsn_config_get_value_bool("pegasus", "enable_owl_perf_counter", true, "enable_owl_perf_counter");
-        if(ret)
+        _enable_falcon = dsn_config_get_value_bool("pegasus", "enable_falcon_perf_counter", true, "enable_falcon_perf_counter");
+
+        _enable_owl = dsn_config_get_value_bool("pegasus", "enable_owl_perf_counter", true, "enable_owl_perf_counter");
+        if(_enable_owl)
         {
             pegasus_owl_updater::instance().register_handler(this);
         }
-        _enable_falcon = dsn_config_get_value_bool("pegasus", "enable_falcon_perf_counter", true, "enable_falcon_perf_counter");
     }
 
     ~pegasus_perf_counter_number_percentile_fast(void)
     {
-        dinfo("pegasus_perf_counter_number_percentile_fast::~pegasus_perf_counter_number_percentile_fast");
+        if(_enable_owl)
+        {
+            pegasus_owl_updater::instance().unregister_handler(this);
+        }
         _timer->cancel();
     }
 
@@ -458,7 +465,6 @@ private:
 
     void on_timer(std::shared_ptr<boost::asio::deadline_timer> timer, const boost::system::error_code& ec)
     {
-        dinfo("pegasus_perf_counter_number_percentile_fast::on_timer");
         //as the callback is not in tls context, so the log system calls like ddebug, dassert will cause a lock
         if (!ec)
         {
@@ -486,6 +492,7 @@ private:
     uint64_t _results[COUNTER_PERCENTILE_COUNT];
     int      _counter_computation_interval_seconds;
     bool     _enable_falcon;
+    bool     _enable_owl;
 };
 
 
@@ -493,7 +500,6 @@ private:
 
 perf_counter* pegasus_perf_counter_factory(const char* app, const char *section, const char *name, dsn_perf_counter_type_t type, const char *dsptr)
 {
-    dinfo("pegasus_perf_counter_factory");
     if (type == dsn_perf_counter_type_t::COUNTER_TYPE_NUMBER)
         return new pegasus_perf_counter_number_fast(app, section, name, type, dsptr);
     else if (type == dsn_perf_counter_type_t::COUNTER_TYPE_RATE)

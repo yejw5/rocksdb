@@ -54,6 +54,7 @@ public:
     pegasus_owl_updater();
     virtual ~pegasus_owl_updater();
     bool register_handler(perf_counter* pc);
+    bool unregister_handler(perf_counter* pc);
 
 private:
     void update();

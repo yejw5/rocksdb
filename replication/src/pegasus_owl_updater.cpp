@@ -43,7 +43,6 @@ namespace pegasus{ namespace tools{
 
 pegasus_owl_updater::pegasus_owl_updater()
 {
-    dinfo("pegasus_owl_updater::pegasus_owl_updater");
     _meta.active = dsn_config_get_value_bool("pegasus.owl", "info_active", true, "meta_active");
     _meta.cluster = dsn_config_get_value_string("pegasus.owl", "info_cluster", "", "meta_cluster");
     dassert(_meta.cluster.size() > 0, "");
@@ -92,17 +91,17 @@ pegasus_owl_updater::pegasus_owl_updater()
 
 pegasus_owl_updater::~pegasus_owl_updater()
 {
-    dinfo("pegasus_owl_updater::~pegasus_owl_updater");
     _timer->cancel();
 }
 
 bool pegasus_owl_updater::register_handler(perf_counter *pc)
 {
-    dinfo("pegasus_owl_updater::register_handler, %s", pc->full_name());
     utils::auto_write_lock l(_lock);
+    dinfo("register owl handler, %s", pc->full_name());
     auto it = _perf_counters.find(pc);
     if (it == _perf_counters.end() )
     {
+        //pc->add_ref();
         _perf_counters[pc] = pc->type();
         return true;
     }
@@ -111,6 +110,20 @@ bool pegasus_owl_updater::register_handler(perf_counter *pc)
         dassert(false, "registration confliction for '%s'", pc->name());
         return false;
     }
+}
+
+bool pegasus_owl_updater::unregister_handler(perf_counter *pc)
+{
+    dinfo("unregister owl handler, %s", pc->full_name());
+    utils::auto_write_lock l(_lock);
+    auto it = _perf_counters.find(pc);
+    if (it != _perf_counters.end() )
+    {
+        _perf_counters.erase(it);
+        //pc->release_ref();
+        return true;
+    }
+    return false;
 }
 
 void replaceAll(std::string& str, const std::string& from, const std::string& to) {
@@ -125,13 +138,17 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 
 void pegasus_owl_updater::update()
 {
-    dinfo("pegasus_owl_updater::update");
+    dinfo("start owl update");
     if(_flag.test_and_set())
         return;
     perf_counter_map tmp_map;
     {
         utils::auto_read_lock l(_lock);
-        tmp_map = _perf_counters;
+        for(const std::pair<perf_counter*, dsn_perf_counter_type_t>& kvp : tmp_map)
+        {
+            kvp.first->add_ref();
+            tmp_map.insert(kvp);
+        }
     }
 
     owl_report_info info;
@@ -140,7 +157,7 @@ void pegasus_owl_updater::update()
     {
         owl_metric m;
         m.dimensions = _dimensions;
-        m.name = kvp.first->full_name();
+        m.name.assign(kvp.first->full_name());
         m._namespace = kvp.first->app();
         m.timestamp = dsn_now_ns() / 1000000000;
         switch(kvp.second)
@@ -163,19 +180,21 @@ void pegasus_owl_updater::update()
         default:
             break;
         }
+
+        kvp.first->release_ref();
     }
     std::stringstream ss;
     info.json_state(ss);
     std::string buff = ss.str();
     replaceAll(buff, "_namespace", "namespace");
 
-    dinfo("owl update start: %s", buff.c_str());
     update_owl(buff);
     _flag.clear();
 }
 
 void pegasus_owl_updater::update_owl(std::string buff)
 {
+    dinfo("start owl update_owl, %s", buff.c_str());
     struct event_base *base = event_base_new();
     struct evhttp_connection *conn = evhttp_connection_base_new(base, NULL, _owl_host.c_str(), _owl_port);
     struct evhttp_request *req = evhttp_request_new(pegasus_owl_updater::http_request_done, base);
@@ -183,38 +202,36 @@ void pegasus_owl_updater::update_owl(std::string buff)
     evhttp_add_header(req->output_headers, "Host", _owl_host.c_str());
     evhttp_add_header(req->output_headers, "Content-Type", "application/json");
     evbuffer_add(req->output_buffer, buff.c_str(), buff.size());
-    evhttp_connection_set_timeout(req->evcon, 600);
+    //evhttp_connection_set_timeout(req->evcon, 600);
     evhttp_make_request(conn, req, EVHTTP_REQ_POST, _owl_path.c_str());
 
     event_base_dispatch(base);
 
     //clear;
-    evhttp_request_free(req);
     evhttp_connection_free(conn);
     event_base_free(base);
 }
 
 void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *arg)
 {
-    dinfo("pegasus_owl_updater::http_request_done");
+    dinfo("owl http_request_done");
     struct event_base* event = (struct event_base*)arg;
     switch(req->response_code)
     {
     case HTTP_OK:
         {
-            struct evbuffer* buf = evhttp_request_get_input_buffer(req);
-            size_t len = evbuffer_get_length(buf);
-            char *tmp = (char*)malloc(len+1);
-            memcpy(tmp, evbuffer_pullup(buf, -1), len);
-            tmp[len] = '\0';
-            dinfo("owl update receive OK, %s", tmp);
-            free(tmp);
+            //struct evbuffer* buf = evhttp_request_get_input_buffer(req);
+            //size_t len = evbuffer_get_length(buf);
+            //char *tmp = (char*)malloc(len+1);
+            //memcpy(tmp, evbuffer_pullup(buf, -1), len);
+            //tmp[len] = '\0';
+            //free(tmp);
             event_base_loopexit(event, 0);
         }
         break;
 
     default:
-        derror("owl update receive ERROR: %u", req->response_code);
+        //derror("owl update receive ERROR: %u", req->response_code);
         event_base_loopexit(event, 0);
         return;
     }
@@ -222,7 +239,6 @@ void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *ar
 
 void pegasus_owl_updater::on_timer(std::shared_ptr<boost::asio::deadline_timer> timer, const boost::system::error_code& ec)
 {
-    dinfo("pegasus_owl_updater::on_timer");
     //as the callback is not in tls context, so the log system calls like ddebug, dassert will cause a lock
     if (!ec)
     {
