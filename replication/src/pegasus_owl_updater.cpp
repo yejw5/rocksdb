@@ -153,6 +153,7 @@ void pegasus_owl_updater::update()
     if(tmp_map.size() == 0)
     {
         dinfo("no owl update needed");
+        _flag.clear();
         return;
     }
 
