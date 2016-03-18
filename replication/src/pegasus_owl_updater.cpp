@@ -214,12 +214,12 @@ void pegasus_owl_updater::update_owl(std::string buff)
 
 void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *arg)
 {
-    dinfo("owl http_request_done");
     struct event_base* event = (struct event_base*)arg;
     switch(req->response_code)
     {
     case HTTP_OK:
         {
+            dinfo("owl http_request_done OK");
             //struct evbuffer* buf = evhttp_request_get_input_buffer(req);
             //size_t len = evbuffer_get_length(buf);
             //char *tmp = (char*)malloc(len+1);
@@ -231,7 +231,7 @@ void pegasus_owl_updater::http_request_done(struct evhttp_request *req, void *ar
         break;
 
     default:
-        //derror("owl update receive ERROR: %u", req->response_code);
+        derror("owl update receive ERROR: %u", req->response_code);
         event_base_loopexit(event, 0);
         return;
     }
