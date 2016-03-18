@@ -45,7 +45,7 @@ mkdir "$pack_folder"
 mkdir "$pack_folder""/bin"
 cp builder/bin/rrdb/rrdb "$pack_folder""/bin"
 cp client_lib/sample/rrdb_sample "$pack_folder""/bin"
-cp ../../rDSN/install/bin/dsn.ddlclient/dsn.ddlclient "$pack_folder""/bin"
+cp ../../rDSN/builder/bin/dsn.ddlclient/dsn.ddlclient "$pack_folder""/bin"
 cp ../rrdb_bench "$pack_folder""/bin"
 
 # copy tool chain
@@ -54,7 +54,7 @@ cp ../rrdb_bench "$pack_folder""/bin"
 # cp -r "$tool_chain_folder" "$pack_folder""/toolchain"
 
 # copy glibc
-cp -r "$GLIBC_DIR" "$pack_folder""/toolchain"
+# cp -r "$GLIBC_DIR" "$pack_folder""/toolchain"
 
 # copy boost lib
 mkdir "$pack_folder""/core"
