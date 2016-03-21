@@ -61,10 +61,10 @@ pegasus_owl_updater::pegasus_owl_updater()
     _task.assign(temp);
 
     std::unordered_map<std::string, std::string> map;
-    map.insert(std::pair<std::string, std::string>("key", "task"));
-    map.insert(std::pair<std::string, std::string>("value", _task));
-    _dimensions.push_back(map);
-    map.clear();
+    //map.insert(std::pair<std::string, std::string>("key", "task"));
+    //map.insert(std::pair<std::string, std::string>("value", _task));
+    //_dimensions.push_back(map);
+    //map.clear();
     map.insert(std::pair<std::string, std::string>("key", "cluster"));
     map.insert(std::pair<std::string, std::string>("value", _meta.cluster));
     _dimensions.push_back(map);
@@ -144,7 +144,7 @@ void pegasus_owl_updater::update()
     perf_counter_map tmp_map;
     {
         utils::auto_read_lock l(_lock);
-        for(const std::pair<perf_counter*, dsn_perf_counter_type_t>& kvp : tmp_map)
+        for(const std::pair<perf_counter*, dsn_perf_counter_type_t>& kvp : _perf_counters)
         {
             kvp.first->add_ref();
             tmp_map.insert(kvp);
