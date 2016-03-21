@@ -174,7 +174,7 @@ void pegasus_owl_updater::update()
             info.metrics.push_back(m);
             break;
         case COUNTER_TYPE_RATE:
-            m.unit = "Count/Second";
+            m.unit = "CountPerSecond";
             m.value = kvp.first->get_integer_value();
             info.metrics.push_back(m);
             break;
@@ -193,6 +193,7 @@ void pegasus_owl_updater::update()
     info.json_state(ss);
     std::string buff = ss.str();
     replaceAll(buff, "_namespace", "namespace");
+    replaceAll(buff, "\"active\":1,", "\"active\":true,");
 
     update_owl(buff);
     _flag.clear();
