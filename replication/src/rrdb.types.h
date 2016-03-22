@@ -8,11 +8,11 @@
 //
 // !!! WARNING: not feasible for replicated service yet!!! 
 //
-// # define DSN_NOT_USE_DEFAULT_SERIALIZATION
+// # define DSN_USE_THRIFT_SERIALIZATION
 
 # include <dsn/service_api_cpp.h>
 
-# ifdef DSN_NOT_USE_DEFAULT_SERIALIZATION
+# ifdef DSN_USE_THRIFT_SERIALIZATION
 
 # include <dsn/thrift_helper.h>
 # include "rrdb_types.h" 
