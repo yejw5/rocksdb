@@ -14,7 +14,7 @@
 
 # ifdef DSN_USE_THRIFT_SERIALIZATION
 
-# include <dsn/thrift_helper.h>
+# include <dsn/idl/thrift_helper.h>
 # include "rrdb_types.h" 
 
 # else // use rDSN's data encoding/decoding
