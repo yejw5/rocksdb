@@ -83,6 +83,7 @@ if [ -n "$BOOST_DIR" ]
 then
     echo "Use customized boost: $BOOST_DIR"
     CMAKE_OPTIONS="$CMAKE_OPTIONS -DBoost_NO_BOOST_CMAKE=ON -DBOOST_ROOT=$BOOST_DIR -DBoost_NO_SYSTEM_PATHS=ON"
+    export EXTRA_LDFLAGS="$EXTRA_LDFLAGS -Wl,-rpath $BOOST_DIR/lib"
 else
     echo "Use system boost"
 fi

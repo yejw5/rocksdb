@@ -30,14 +30,12 @@ public:
         load_suite_config(s);
         suits.push_back(s);
         
-        /*
         s.name = "rrdb.merge";
         s.config_section = "task.RPC_RRDB_RRDB_MERGE";
         s.send_one = [this](int payload_bytes, int key_space_size){this->send_one_merge(payload_bytes, key_space_size); };
         s.cases.clear();
         load_suite_config(s);
         suits.push_back(s);
-        */
         
         s.name = "rrdb.get";
         s.config_section = "task.RPC_RRDB_RRDB_GET";
@@ -51,7 +49,6 @@ public:
 
     void send_one_put(int payload_bytes, int key_space_size)
     {
-        void* ctx = prepare_send_one();
         update_request req;
         
         auto rs = random64(0, 10000000) % key_space_size;
@@ -74,10 +71,8 @@ public:
             );
     }
 
-
     void send_one_remove(int payload_bytes, int key_space_size)
     {
-        void* ctx = prepare_send_one();
         ::dsn::blob req;
 
         auto rs = random64(0, 10000000) % key_space_size;
@@ -96,10 +91,8 @@ public:
             );
     }
 
-
     void send_one_merge(int payload_bytes, int key_space_size)
     {
-        void* ctx = prepare_send_one();
         update_request req;
 
         auto rs = random64(0, 10000000) % key_space_size;
@@ -122,10 +115,8 @@ public:
             );
     }
 
-
     void send_one_get(int payload_bytes, int key_space_size)
     {
-        void* ctx = prepare_send_one();
         ::dsn::blob req;
 
         auto rs = random64(0, 10000000) % key_space_size;
@@ -143,7 +134,6 @@ public:
             _timeout
             );
     }
-
 };
 
 } } 

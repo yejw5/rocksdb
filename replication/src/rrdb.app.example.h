@@ -39,7 +39,7 @@ public:
 
     void on_test_timer()
     {
-        // test for service rrdb        using namespace svc_rrdb;
+        // test for service rrdb
         {
             update_request req;
             //sync:
