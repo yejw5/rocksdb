@@ -36,7 +36,9 @@ function usage_build()
     echo "Options for subcommand 'build':"
     echo "   -h|--help         print the help info"
     echo "   -t|--type         build type: debug|release, default is debug"
+    echo "   -s|--serialize    serialize type: dsn|thrift|proto, default is thrift"
     echo "   -c|--clear        clear the environment before building"
+    echo "   -cc|--half-clear  only clear the environment of replication before building"
     echo "   -b|--boost_dir <dir>"
     echo "                     specify customized boost directory,"
     echo "                     if not set, then use the system boost"
@@ -47,6 +49,7 @@ function usage_build()
 function run_build()
 {
     BUILD_TYPE="debug"
+    SERIALIZE_TYPE="thrift"
     CLEAR=NO
     PART_CLEAR=NO
     BOOST_DIR=""
@@ -63,6 +66,10 @@ function run_build()
                 ;;
             -t|--type)
                 BUILD_TYPE="$2"
+                shift
+                ;;
+            -s|--serialize)
+                SERIALIZE_TYPE="$2"
                 shift
                 ;;
             -c|--clear)
@@ -99,8 +106,13 @@ function run_build()
         usage_build
         exit -1
     fi
-
-    cd replication; BUILD_TYPE="$BUILD_TYPE" CLEAR="$CLEAR" PART_CLEAR="$PART_CLEAR" \
+    if [ "$SERIALIZE_TYPE" != "dsn" -a "$SERIALIZE_TYPE" != "thrift" -a "$SERIALIZE_TYPE" != "protobuf" ]; then
+        echo "ERROR: invalid serialize type \"$SERIALIZE_TYPE\""
+        echo
+        usage_build
+        exit -1
+    fi
+    cd replication; BUILD_TYPE="$BUILD_TYPE" SERIALIZE_TYPE="$SERIALIZE_TYPE" CLEAR="$CLEAR" PART_CLEAR="$PART_CLEAR" \
         BOOST_DIR="$BOOST_DIR" WARNING_ALL="$WARNING_ALL" ENABLE_GCOV="$ENABLE_GCOV" \
         RUN_VERBOSE="$RUN_VERBOSE" TEST_MODULE="$TEST_MODULE" ./build.sh
 }
