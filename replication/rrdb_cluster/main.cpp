@@ -2,8 +2,6 @@
 
 #include <stdio.h>
 #include <iostream>
-//#include <rrdb_client.h>
-//#include "client_ddl.h"
 #include "tool.h"
 #include <string>
 #include <vector>
@@ -179,5 +177,3 @@ int main()
 
     return 0;
 }
-
-/* vim: set ts=4 sw=4 sts=4 tw=100 */
