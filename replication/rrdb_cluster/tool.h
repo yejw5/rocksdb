@@ -9,6 +9,7 @@
 
 using namespace ::dsn::apps;
 
+static const char* CONNECT = "connect";
 static const char* LIST_APP_OP = "app";
 static const char* LIST_APPS_OP = "ls";
 static const char* LIST_NODES_OP = "nodes";
@@ -38,11 +39,12 @@ void printHelpInfo()
 //Help information
 {
     std::cout << "Usage:" << std::endl;
-    std::cout << "\t" << "create:          create -name <app_name> -type <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
-    std::cout << "\t" << "drop:            drop -name <app_name>" << std::endl;
-    std::cout << "\t" << "list_apps:       ls [-status <all|available|creating|creating_failed|dropping|dropping_failed|dropped>] [-o <out_file>]" << std::endl;
-    std::cout << "\t" << "list_app:        app -name <app_name> [-detailed] [-o <out_file>]" << std::endl;
-    std::cout << "\t" << "list_nodes:      nodes [-status <all|alive|unalive>] [-o <out_file>]" << std::endl;
+    std::cout << "\t" << "connect:         connect ip:port,ip:port,ip:port" << std::endl;
+    std::cout << "\t" << "create:          create <app_name> <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
+    std::cout << "\t" << "drop:            drop <app_name>" << std::endl;
+    std::cout << "\t" << "ls:              ls [-status <all|available|creating|creating_failed|dropping|dropping_failed|dropped>] [-o <out_file>]" << std::endl;
+    std::cout << "\t" << "app:             app <app_name> [-detailed] [-o <out_file>]" << std::endl;
+    std::cout << "\t" << "nodes:           nodes [-status <all|alive|unalive>] [-o <out_file>]" << std::endl;
     std::cout << "\t" << "stop_migration:  stop_migration" << std::endl;
     std::cout << "\t" << "start_migration: start_migration" << std::endl;
     std::cout << "\t" << "balancer:        balancer -gpid <appid.pidx> -type <move_pri|copy_pri|copy_sec> -from <from_address> -to <to_address>" << std::endl;
@@ -131,6 +133,31 @@ void help_op(int Argc)
         std::cout << "USAGE: help" << std::endl;
 }
 
+bool connect_op(std::string ip_addr_of_cluster, std::vector< ::dsn::rpc_address> &servers)
+{
+    const char* cluster_meta_servers = ip_addr_of_cluster.c_str();
+    if (cluster_meta_servers[0] != '\0') {
+        std::vector<std::string> server_strs;
+        ::dsn::utils::split_args(cluster_meta_servers, server_strs, ',');
+        if (server_strs.empty()) {
+            derror("invalid parameter");
+            return false;
+        }
+        else {
+            for (auto& addr_str : server_strs) {
+                ::dsn::rpc_address addr;
+                if (!addr.from_string_ipv4(addr_str.c_str())) {
+                    derror("invalid parameter");
+                    return false;
+                }
+                servers.push_back(addr);
+            }
+        }
+
+    }
+    return true;
+}
+
 void create_app_op(std::string app_name, std::string app_type, int partition_count, int replica_count, dsn::replication::replication_ddl_client& client_of_dsn)
 {
     std::cout << "[Parameters]" << std::endl;
@@ -145,7 +172,7 @@ void create_app_op(std::string app_name, std::string app_type, int partition_cou
     std::cout << std::endl << "[Result]" << std::endl;
 
     if(app_name.empty() || app_type.empty())
-        std::cout << "create -name <app_name> -type <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
+        std::cout << "create <app_name> <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
     dsn::error_code err = client_of_dsn.create_app(app_name, app_type, partition_count, replica_count);
     if(err == dsn::ERR_OK)
         std::cout << "create app:" << app_name << " succeed" << std::endl;
@@ -156,7 +183,7 @@ void create_app_op(std::string app_name, std::string app_type, int partition_cou
 void drop_app_op(std::string app_name, dsn::replication::replication_ddl_client &client_of_dsn)
 {
     if(app_name.empty())
-        std::cout << "drop -name <app_name>" << std::endl;
+        std::cout << "drop <app_name>" << std::endl;
     dsn::error_code err = client_of_dsn.drop_app(app_name);
     if(err == dsn::ERR_OK)
         std::cout << "drop app:" << app_name << " succeed" << std::endl;
@@ -208,7 +235,7 @@ void list_app_op(std::string app_name, bool detailed, std::string out_file, dsn:
     std::cout << std::endl << "[Result]" << std::endl;
 
     if(app_name.empty())
-        std::cout << "app -name <app_name> [-detailed] [-o <out_file>]" << std::endl;
+        std::cout << "app <app_name> [-detailed] [-o <out_file>]" << std::endl;
     dsn::error_code err = client_of_dsn.list_app(app_name, detailed, out_file);
     if(err == dsn::ERR_OK)
         std::cout << "list app:" << app_name << " succeed" << std::endl;
@@ -253,7 +280,7 @@ void start_migration_op(dsn::replication::replication_ddl_client &client_of_dsn)
     std::cout << "start migration result: " << err.to_string() << std::endl;
 }
 
-void use_op(int Argc, std::string Argv[], std::string &table_name, dsn::replication::configuration_list_apps_response resp)
+void use_op(int Argc, std::string Argv[], std::string &table_name)
 {
     if ( Argc == 1 && table_name.empty())
         std::cout << "No table is using now!" << std::endl;
@@ -261,17 +288,8 @@ void use_op(int Argc, std::string Argv[], std::string &table_name, dsn::replicat
         std::cout << "The using table is: " << table_name << std::endl;
     else if ( Argc == 2 )
     {
-        bool isInResp = false;
-        for(int i = 0; i < resp.infos.size(); i++)
-            if ( resp.infos[i].app_name == Argv[1] && resp.infos[i].status == dsn::replication::AS_AVAILABLE )
-                isInResp = true;
-        if ( isInResp )
-        {
-            table_name = Argv[1];
-            std::cout << "Successfully!" << std::endl;
-        }
-        else
-            std::cout << "The table " << Argv[1] << " does\'t exist." << std::endl;
+        table_name = Argv[1];
+        std::cout << "OK" << std::endl;
     }
     else
         std::cout << "USAGE: use [table-name]" << std::endl;

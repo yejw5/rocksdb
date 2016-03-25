@@ -9,20 +9,26 @@
 using namespace ::dsn::apps;
 
 #define PARA_NUM 10
-#define CONFIG_FILE "rrdb_cluster.ini"
 
 int main()
 {
     printHead();
     printHelpInfo();
 
-    if (!rrdb_client_factory::initialize(CONFIG_FILE)) {
-        fprintf(stderr, "ERROR: init pegasus failed: %s\n", CONFIG_FILE);
+    if (!rrdb_client_factory::initialize("config.ini")) {
+        fprintf(stderr, "ERROR: init pegasus failed\n");
         return -1;
     }
 
     std::string op_name;
     std::string table_name = "";
+
+    std::vector<dsn::rpc_address> meta_servers;
+    dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
+    dsn::replication::replication_ddl_client client_of_dsn(meta_servers);
+    irrdb_client* client_of_rrdb;
+
+    std::string ip_addr_of_cluster;
 
     while ( true )
     {
@@ -35,11 +41,6 @@ int main()
         if ( Argc == 0 )
             continue;
 
-        std::vector<dsn::rpc_address> meta_servers;
-        dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
-        dsn::replication::replication_ddl_client client_of_dsn(meta_servers);
-        dsn::replication::configuration_list_apps_response resp;
-
         std::string app_name;
         std::string app_type;
         int partition_count = 4;
@@ -50,11 +51,7 @@ int main()
 
         for(int index = 1; index < Argc; index++)
         {
-            if( Argv[index] == "-name" && Argc > index + 1)
-                app_name = Argv[++index];
-            else if(Argv[index] == "-type" && Argc > index + 1)
-                app_type = Argv[++index];
-            else if(Argv[index] == "-pc" && Argc > index + 1)
+            if(Argv[index] == "-pc" && Argc > index + 1)
                 partition_count = atol(Argv[++index].c_str());
             else if(Argv[index] == "-rc" && Argc > index + 1)
                 replica_count = atol(Argv[++index].c_str());
@@ -66,36 +63,31 @@ int main()
                 out_file = Argv[++index];
         }
 
-        std::string status_for_get_apps;
-        dsn::replication::app_status s = dsn::replication::AS_INVALID;
-        if (!status_for_get_apps.empty() && status_for_get_apps != "all") {
-            std::transform(status_for_get_apps.begin(), status_for_get_apps.end(), status_for_get_apps.begin(), ::toupper);
-            status_for_get_apps = "AS_" + status_for_get_apps;
-            s = enum_from_string(status_for_get_apps.c_str(), dsn::replication::AS_INVALID);
-        }
-        //get all apps, for determining whether a table exists.
-        //dsn::error_code err = client_of_dsn.get_apps(resp, s, out_file);
-
-        irrdb_client* client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str());
-
         op_name = Argv[0];
         if ( op_name == HELP_OP )
             help_op(Argc);
         else if ( op_name == CREATE_APP_OP )
         {
-            if ( Argc >= 5 )
+            if ( Argc >= 3 )
+            {
+                app_name = Argv[1];
+                app_type = Argv[2];
                 create_app_op(app_name, app_type, partition_count, replica_count, client_of_dsn);
+            }
             else
                 std::cout << "USAGE: " << std::endl << "\t"
-                          << "create -name <app_name> -type <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
+                          << "create <app_name> <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
         }
         else if( op_name == DROP_APP_OP )
         {
-            if ( Argc == 3 )
+            if ( Argc == 2 )
+            {
+                app_name = Argv[1];
                 drop_app_op(app_name, client_of_dsn);
+            }
             else
                 std::cout << "USAGE: " << std::endl << "\t"
-                          << "drop -name <app_name>" << std::endl;
+                          << "drop <app_name>" << std::endl;
         }
         else if ( op_name == LIST_APPS_OP )
         {
@@ -108,11 +100,14 @@ int main()
         }
         else if ( op_name == LIST_APP_OP )
         {
-            if ( Argc >= 3 && Argc <= 6 )
+            if ( Argc >= 2 && Argc <= 5 )
+            {
+                app_name = Argv[1];
                 list_app_op(app_name, detailed, out_file, client_of_dsn);
+            }
             else
                 std::cout << "USAGE: " << std::endl << "\t"
-                          << "app -name <app_name> [-detailed] [-o <out_file>]" << std::endl;
+                          << "app <app_name> [-detailed] [-o <out_file>]" << std::endl;
         }
         else if ( op_name == LIST_NODES_OP) {
             if ( Argc == 1 || Argc == 3 || Argc == 5 )
@@ -162,14 +157,42 @@ int main()
             dsn::error_code err = client_of_dsn.send_balancer_proposal(request);
             std::cout << "send balancer proposal result: " << err.to_string() << std::endl;
         }
+        else if (op_name == CONNECT )
+        {
+            if ( Argc > 2 )
+                std::cout << "USAGE: connect ip:port,ip:port,ip:port" << std::endl;
+            ip_addr_of_cluster = Argv[1];
+            table_name = "";
+
+            bool parseSuccess;
+            std::vector< ::dsn::rpc_address> servers;
+            parseSuccess = connect_op(ip_addr_of_cluster, servers);
+            if ( parseSuccess )
+            {
+                dsn::replication::replication_ddl_client tmp_client_of_dsn(servers);
+                client_of_dsn = tmp_client_of_dsn;
+                std::cout << "OK" << std::endl;
+            }
+            else
+                std::cout << "USAGE: connect ip:port,ip:port,ip:port" << std::endl;
+        }
         else if ( op_name == USE_OP )
-            use_op(Argc, Argv, table_name, resp);
+            use_op(Argc, Argv, table_name);
         else if ( op_name == GET_OP )
+        {
+            client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str(), ip_addr_of_cluster.c_str());
             get_op(Argc, Argv, client_of_rrdb);
+        }
         else if (op_name == SET_OP)
+        {
+            client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str(), ip_addr_of_cluster.c_str());
             set_op(Argc, Argv, client_of_rrdb);
+        }
         else if ( op_name == DEL_OP )
+        {
+            client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str(), ip_addr_of_cluster.c_str());
             del_op(Argc, Argv, client_of_rrdb);
+        }
         else if ( op_name == EXIT_OP )
             return 0;
         else
