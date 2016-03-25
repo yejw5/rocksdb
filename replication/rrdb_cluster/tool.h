@@ -39,7 +39,7 @@ void printHelpInfo()
 //Help information
 {
     std::cout << "Usage:" << std::endl;
-    std::cout << "\t" << "connect:         connect ip:port,ip:port,ip:port" << std::endl;
+    std::cout << "\t" << "connect:         connect [meta_servers]" << std::endl;
     std::cout << "\t" << "create:          create <app_name> <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
     std::cout << "\t" << "drop:            drop <app_name>" << std::endl;
     std::cout << "\t" << "ls:              ls [-status <all|available|creating|creating_failed|dropping|dropping_failed|dropped>] [-o <out_file>]" << std::endl;
@@ -48,13 +48,14 @@ void printHelpInfo()
     std::cout << "\t" << "stop_migration:  stop_migration" << std::endl;
     std::cout << "\t" << "start_migration: start_migration" << std::endl;
     std::cout << "\t" << "balancer:        balancer -gpid <appid.pidx> -type <move_pri|copy_pri|copy_sec> -from <from_address> -to <to_address>" << std::endl;
-    std::cout << "\t" << "use:             use [table-name]" << std::endl;
-    std::cout << "\t" << "set:             set <hash-key> <sort-key> <value>" << std::endl;
-    std::cout << "\t" << "get:             get <hash-key> <sort-key>" << std::endl;
-    std::cout << "\t" << "del:             del <hash-key> <sort-key>" << std::endl;
+    std::cout << "\t" << "use:             use [app_name]" << std::endl;
+    std::cout << "\t" << "set:             set <hash_key> <sort_key> <value>" << std::endl;
+    std::cout << "\t" << "get:             get <hash_key> <sort_key>" << std::endl;
+    std::cout << "\t" << "del:             del <hash_key> <sort_key>" << std::endl;
     std::cout << "\t" << "exit:            exit" << std::endl;
     std::cout << "\t" << "help:            help" << std::endl;
     std::cout << std::endl;
+    std::cout << "\tmeta_servers should be in format of \"ip:port,ip:port,...,ip:port\"" << std::endl;
     std::cout << "\tpartition count must be a power of 2" << std::endl;
     std::cout << "\tapp_name and app_type shoud be composed of a-z, 0-9 and underscore" << std::endl;
     std::cout << "\twithout -o option, program will print status on screen" << std::endl;
@@ -175,9 +176,9 @@ void create_app_op(std::string app_name, std::string app_type, int partition_cou
         std::cout << "create <app_name> <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
     dsn::error_code err = client_of_dsn.create_app(app_name, app_type, partition_count, replica_count);
     if(err == dsn::ERR_OK)
-        std::cout << "create app:" << app_name << " succeed" << std::endl;
+        std::cout << "create app " << app_name << " succeed" << std::endl;
     else
-        std::cout << "create app:" << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
+        std::cout << "create app " << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
 void drop_app_op(std::string app_name, dsn::replication::replication_ddl_client &client_of_dsn)
@@ -186,9 +187,9 @@ void drop_app_op(std::string app_name, dsn::replication::replication_ddl_client 
         std::cout << "drop <app_name>" << std::endl;
     dsn::error_code err = client_of_dsn.drop_app(app_name);
     if(err == dsn::ERR_OK)
-        std::cout << "drop app:" << app_name << " succeed" << std::endl;
+        std::cout << "drop app " << app_name << " succeed" << std::endl;
     else
-        std::cout << "drop app:" << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
+        std::cout << "drop app " << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
 void list_apps_op(std::string status, std::string out_file, dsn::replication::replication_ddl_client &client_of_dsn)
@@ -238,9 +239,9 @@ void list_app_op(std::string app_name, bool detailed, std::string out_file, dsn:
         std::cout << "app <app_name> [-detailed] [-o <out_file>]" << std::endl;
     dsn::error_code err = client_of_dsn.list_app(app_name, detailed, out_file);
     if(err == dsn::ERR_OK)
-        std::cout << "list app:" << app_name << " succeed" << std::endl;
+        std::cout << "list app " << app_name << " succeed" << std::endl;
     else
-        std::cout << "list app:" << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
+        std::cout << "list app " << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
 void list_node_op(std::string status, std::string out_file, dsn::replication::replication_ddl_client &client_of_dsn)
@@ -280,26 +281,26 @@ void start_migration_op(dsn::replication::replication_ddl_client &client_of_dsn)
     std::cout << "start migration result: " << err.to_string() << std::endl;
 }
 
-void use_op(int Argc, std::string Argv[], std::string &table_name)
+void use_op(int Argc, std::string Argv[], std::string &app_name)
 {
-    if ( Argc == 1 && table_name.empty())
-        std::cout << "No table is using now!" << std::endl;
-    else if ( Argc == 1 && !table_name.empty() )
-        std::cout << "The using table is: " << table_name << std::endl;
+    if ( Argc == 1 && app_name.empty())
+        std::cout << "No app is using now!" << std::endl;
+    else if ( Argc == 1 && !app_name.empty() )
+        std::cout << "The using app is: " << app_name << std::endl;
     else if ( Argc == 2 )
     {
-        table_name = Argv[1];
+        app_name = Argv[1];
         std::cout << "OK" << std::endl;
     }
     else
-        std::cout << "USAGE: use [table-name]" << std::endl;
+        std::cout << "USAGE: use [app_name]" << std::endl;
 }
 
 void get_op(int Argc, std::string Argv[], irrdb_client* client)
 {
     if ( Argc != 3 )
     {
-        std::cout << "USAGE: set <hash-key> <sort-key>" << std::endl;
+        std::cout << "USAGE: set <hash_key> <sort_key> <value>" << std::endl;
         return;
     }
 
@@ -324,7 +325,7 @@ void set_op(int Argc, std::string Argv[], irrdb_client* client)
 {
     if ( Argc != 4 )
     {
-        std::cout << "USAGE: set <hash-key> <sort-key> <value>" << std::endl;
+        std::cout << "USAGE: set <hash_key> <sort_key> <value>" << std::endl;
         return;
     }
 
@@ -344,7 +345,7 @@ void del_op(int Argc, std::string Argv[], irrdb_client* client)
 {
     if ( Argc != 3 )
     {
-        std::cout << "USAGE: del <hash-key> <sort-key>" << std::endl;
+        std::cout << "USAGE: del <hash_key> <sort_key>" << std::endl;
         return;
     }
 

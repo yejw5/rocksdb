@@ -21,12 +21,12 @@ int main()
     }
 
     std::string op_name;
-    std::string table_name = "";
+    std::string app_name;
 
     std::vector<dsn::rpc_address> meta_servers;
     dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
-    dsn::replication::replication_ddl_client client_of_dsn(meta_servers);
-    irrdb_client* client_of_rrdb;
+    dsn::replication::replication_ddl_client* client_of_dsn = new dsn::replication::replication_ddl_client(meta_servers);
+    irrdb_client* client_of_rrdb = NULL;
 
     std::string ip_addr_of_cluster;
 
@@ -41,8 +41,6 @@ int main()
         if ( Argc == 0 )
             continue;
 
-        std::string app_name;
-        std::string app_type;
         int partition_count = 4;
         int replica_count = 3;
         std::string status;
@@ -69,11 +67,7 @@ int main()
         else if ( op_name == CREATE_APP_OP )
         {
             if ( Argc >= 3 )
-            {
-                app_name = Argv[1];
-                app_type = Argv[2];
-                create_app_op(app_name, app_type, partition_count, replica_count, client_of_dsn);
-            }
+                create_app_op(Argv[1], Argv[2], partition_count, replica_count, *client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "create <app_name> <app_type> [-pc partition_count] [-rc replication_count]" << std::endl;
@@ -81,10 +75,7 @@ int main()
         else if( op_name == DROP_APP_OP )
         {
             if ( Argc == 2 )
-            {
-                app_name = Argv[1];
-                drop_app_op(app_name, client_of_dsn);
-            }
+                drop_app_op(Argv[1], *client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "drop <app_name>" << std::endl;
@@ -93,7 +84,7 @@ int main()
         {
             if ( Argc == 1 || (Argc == 3 && (Argv[1] == "-status" || Argv[1] == "-o"))
                  || (Argc == 5 && Argv[1] == "-status" && Argv[3] == "-o") )
-                list_apps_op(status, out_file, client_of_dsn);
+                list_apps_op(status, out_file, *client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "ls [-status <all|available|creating|creating_failed|dropping|dropping_failed|dropped>] [-o <out_file>]" << std::endl;
@@ -101,31 +92,28 @@ int main()
         else if ( op_name == LIST_APP_OP )
         {
             if ( Argc >= 2 && Argc <= 5 )
-            {
-                app_name = Argv[1];
-                list_app_op(app_name, detailed, out_file, client_of_dsn);
-            }
+                list_app_op(Argv[1], detailed, out_file, *client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "app <app_name> [-detailed] [-o <out_file>]" << std::endl;
         }
         else if ( op_name == LIST_NODES_OP) {
             if ( Argc == 1 || Argc == 3 || Argc == 5 )
-                list_node_op(status, out_file, client_of_dsn);
+                list_node_op(status, out_file, *client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "nodes [-status <all|alive|unalive>] [-o <out_file>]" << std::endl;
         }
         else if (op_name == STOP_MIGRATION_OP) {
             if ( Argc == 1 )
-                stop_migration_op(client_of_dsn);
+                stop_migration_op(*client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "stop_migration" << std::endl;
         }
         else if (op_name == START_MIGRATION_OP) {
             if ( Argc == 1 )
-                start_migration_op(client_of_dsn);
+                start_migration_op(*client_of_dsn);
             else
                 std::cout << "USAGE: " << std::endl << "\t"
                           << "start_migration" << std::endl;
@@ -154,49 +142,76 @@ int main()
                     request.to_addr.from_string_ipv4(Argv[i+1].c_str());
                 }
             }
-            dsn::error_code err = client_of_dsn.send_balancer_proposal(request);
+            dsn::error_code err = client_of_dsn->send_balancer_proposal(request);
             std::cout << "send balancer proposal result: " << err.to_string() << std::endl;
         }
         else if (op_name == CONNECT )
         {
-            if ( Argc > 2 )
-                std::cout << "USAGE: connect ip:port,ip:port,ip:port" << std::endl;
-            ip_addr_of_cluster = Argv[1];
-            table_name = "";
+            if ( Argc == 1 ) {
+                client_of_rrdb = rrdb_client_factory::get_client(app_name.c_str(), ip_addr_of_cluster.c_str());
+                if (client_of_rrdb != NULL) {
+                    std::cout << "The connecting cluster is: " << client_of_rrdb->get_cluster_meta_servers() << std::endl;
+                }
+                continue;
+            }
+            else if (Argc != 2) {
+                std::cout << "USAGE: connect [meta_servers]" << std::endl;
+                continue;
+            }
 
-            bool parseSuccess;
+            std::string tmp_cluster = Argv[1];
             std::vector< ::dsn::rpc_address> servers;
-            parseSuccess = connect_op(ip_addr_of_cluster, servers);
+            bool parseSuccess = connect_op(tmp_cluster, servers);
             if ( parseSuccess )
             {
-                dsn::replication::replication_ddl_client tmp_client_of_dsn(servers);
-                client_of_dsn = tmp_client_of_dsn;
+                delete client_of_dsn;
+                client_of_dsn = new dsn::replication::replication_ddl_client(servers);
                 std::cout << "OK" << std::endl;
+                ip_addr_of_cluster = tmp_cluster;
+                app_name = "";
             }
             else
-                std::cout << "USAGE: connect ip:port,ip:port,ip:port" << std::endl;
+                std::cout << "USAGE: connect [meta_servers]" << std::endl;
         }
         else if ( op_name == USE_OP )
-            use_op(Argc, Argv, table_name);
+            use_op(Argc, Argv, app_name);
         else if ( op_name == GET_OP )
         {
-            client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str(), ip_addr_of_cluster.c_str());
-            get_op(Argc, Argv, client_of_rrdb);
+            if (app_name.empty()) {
+                std::cout << "No app is using now!" << std::endl;
+                std::cout << "USAGE: use [app_name]" << std::endl;
+                continue;
+            }
+            client_of_rrdb = rrdb_client_factory::get_client(app_name.c_str(), ip_addr_of_cluster.c_str());
+            if (client_of_rrdb != NULL)
+                get_op(Argc, Argv, client_of_rrdb);
         }
         else if (op_name == SET_OP)
         {
-            client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str(), ip_addr_of_cluster.c_str());
-            set_op(Argc, Argv, client_of_rrdb);
+            if (app_name.empty()) {
+                std::cout << "No app is using now!" << std::endl;
+                std::cout << "USAGE: use [app_name]" << std::endl;
+                continue;
+            }
+            client_of_rrdb = rrdb_client_factory::get_client(app_name.c_str(), ip_addr_of_cluster.c_str());
+            if (client_of_rrdb != NULL)
+                set_op(Argc, Argv, client_of_rrdb);
         }
         else if ( op_name == DEL_OP )
         {
-            client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str(), ip_addr_of_cluster.c_str());
-            del_op(Argc, Argv, client_of_rrdb);
+            if (app_name.empty()) {
+                std::cout << "No app is using now!" << std::endl;
+                std::cout << "USAGE: use [app_name]" << std::endl;
+                continue;
+            }
+            client_of_rrdb = rrdb_client_factory::get_client(app_name.c_str(), ip_addr_of_cluster.c_str());
+            if (client_of_rrdb != NULL)
+                del_op(Argc, Argv, client_of_rrdb);
         }
         else if ( op_name == EXIT_OP )
             return 0;
         else
-            printf("ERROR: Invalid op-name: %s\n", op_name.c_str());
+            std::cout << "ERROR: Invalid op-name: " << op_name << std::endl;
     }
 
     return 0;
