@@ -36,7 +36,7 @@ int main()
 
         std::vector<dsn::rpc_address> meta_servers;
         dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
-        dsn::replication::client_ddl client_of_dsn(meta_servers);
+        dsn::replication::replication_ddl_client client_of_dsn(meta_servers);
         dsn::replication::configuration_list_apps_response resp;
 
         std::string app_name;
@@ -73,7 +73,7 @@ int main()
             s = enum_from_string(status_for_get_apps.c_str(), dsn::replication::AS_INVALID);
         }
         //get all apps, for determining whether a table exists.
-        dsn::error_code err = client_of_dsn.get_apps(resp, s, out_file);
+        //dsn::error_code err = client_of_dsn.get_apps(resp, s, out_file);
 
         irrdb_client* client_of_rrdb = rrdb_client_factory::get_client(table_name.c_str());
 

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string>
 #include <rrdb_client.h>
-#include "client_ddl.h"
+#include <dsn/dist/replication/replication_ddl_client.h>
 #include <iomanip>
 
 using namespace ::dsn::apps;
@@ -131,7 +131,7 @@ void help_op(int Argc)
         std::cout << "USAGE: help" << std::endl;
 }
 
-void create_app_op(std::string app_name, std::string app_type, int partition_count, int replica_count, dsn::replication::client_ddl& client_of_dsn)
+void create_app_op(std::string app_name, std::string app_type, int partition_count, int replica_count, dsn::replication::replication_ddl_client& client_of_dsn)
 {
     std::cout << "[Parameters]" << std::endl;
     if ( !app_name.empty() )
@@ -153,7 +153,7 @@ void create_app_op(std::string app_name, std::string app_type, int partition_cou
         std::cout << "create app:" << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
-void drop_app_op(std::string app_name, dsn::replication::client_ddl &client_of_dsn)
+void drop_app_op(std::string app_name, dsn::replication::replication_ddl_client &client_of_dsn)
 {
     if(app_name.empty())
         std::cout << "drop -name <app_name>" << std::endl;
@@ -164,7 +164,7 @@ void drop_app_op(std::string app_name, dsn::replication::client_ddl &client_of_d
         std::cout << "drop app:" << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
-void list_apps_op(std::string status, std::string out_file, dsn::replication::client_ddl &client_of_dsn)
+void list_apps_op(std::string status, std::string out_file, dsn::replication::replication_ddl_client &client_of_dsn)
 {
     if ( !(status.empty() && out_file.empty()) )
     {
@@ -191,7 +191,7 @@ void list_apps_op(std::string status, std::string out_file, dsn::replication::cl
         std::cout << "list apps failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
-void list_app_op(std::string app_name, bool detailed, std::string out_file, dsn::replication::client_ddl &client_of_dsn)
+void list_app_op(std::string app_name, bool detailed, std::string out_file, dsn::replication::replication_ddl_client &client_of_dsn)
 {
     if ( !(app_name.empty() && out_file.empty()) )
     {
@@ -216,7 +216,7 @@ void list_app_op(std::string app_name, bool detailed, std::string out_file, dsn:
         std::cout << "list app:" << app_name << " failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
-void list_node_op(std::string status, std::string out_file, dsn::replication::client_ddl &client_of_dsn)
+void list_node_op(std::string status, std::string out_file, dsn::replication::replication_ddl_client &client_of_dsn)
 {
     if ( !(status.empty() && out_file.empty()) )
     {
@@ -241,13 +241,13 @@ void list_node_op(std::string status, std::string out_file, dsn::replication::cl
         std::cout << "list nodes failed, error=" << dsn_error_to_string(err) << std::endl;
 }
 
-void stop_migration_op(dsn::replication::client_ddl &client_of_dsn)
+void stop_migration_op(dsn::replication::replication_ddl_client &client_of_dsn)
 {
     dsn::error_code err = client_of_dsn.control_meta_balancer_migration(false);
     std::cout << "stop migration result: " << dsn_error_to_string(err) << std::endl;
 }
 
-void start_migration_op(dsn::replication::client_ddl &client_of_dsn)
+void start_migration_op(dsn::replication::replication_ddl_client &client_of_dsn)
 {
     dsn::error_code err = client_of_dsn.control_meta_balancer_migration(true);
     std::cout << "start migration result: " << err.to_string() << std::endl;

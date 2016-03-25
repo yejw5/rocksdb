@@ -10,27 +10,12 @@ set(MY_PROJ_SRC "")
 # "GLOB" for non-recursive search
 set(MY_SRC_SEARCH_MODE "GLOB")
 
-set(MY_PROJ_INC_PATH "../../include")
+set(MY_PROJ_INC_PATH "../../include" "../client_lib/include")
 
 set(MY_PROJ_LIBS 
-    dsn.replication.global_checker 
-    dsn.replication 
-    dsn.replication.meta_server 
-    dsn.replication.clientlib 
-    dsn.failure_detector
-    dsn.replication.zookeeper_provider 
-    zookeeper_mt
+    dsn.replication.ddlclient
+    rrdb.clientlib
     )
-
-if (UNIX)
-        set(MY_PROJ_LIBS rocksdb ${MY_PROJ_LIBS} z bz2 snappy rt aio pthread)
-else()
-        set(MY_PROJ_LIBS rocksdblib ${MY_PROJ_LIBS} rpcrt4)
-endif()
-
-set(MY_PROJ_LIB_PATH "../..")
-
-set(MY_BOOST_PACKAGES system)
 
 file(GLOB
     RES_FILES
@@ -46,14 +31,7 @@ set(MY_BINPLACES ${RES_FILES})
 if (UNIX)
     SET(CMAKE_INSTALL_RPATH ".")
     SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so")
+    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so" "${DSN_ROOT}/lib/librrdb.clientlib.so")
 endif()
-
-INCLUDE_DIRECTORIES($ENV{DSN_ROOT}/include)
-INCLUDE_DIRECTORIES($ENV{PEGASUS_INCLUDE})
-LINK_DIRECTORIES($ENV{DSN_ROOT}/lib)
-LINK_LIBRARIES(-lrrdb.clientlib -ldsn.core)
-ADD_DEFINITIONS("-std=c++11")
-#ADD_EXECUTABLE(rrdb_cluster main.cpp tool.h client_ddl.cpp client_ddl.h)
 
 dsn_add_executable()
