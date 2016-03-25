@@ -1,4 +1,5 @@
 # pragma once
+# include <dsn/service_api_cpp.h>
 
 //
 // uncomment the following line if you want to use 

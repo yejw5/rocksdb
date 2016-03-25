@@ -4,6 +4,7 @@
 #    CLEAR          YES|NO
 #    PART_CLEAR     YES|NO
 #    BUILD_TYPE     debug|release
+#    SERIALIZE_TYPE dsn|thrift|protobuf
 #    RUN_VERBOSE    YES|NO
 #    WARNING_ALL    YES|NO
 #    ENABLE_GCOV    YES|NO
@@ -45,6 +46,12 @@ else
     echo "BUILD_TYPE=release"
 fi
 
+echo "SERIALIZE_TYPE=$SERIALIZE_TYPE"
+if [ -n "$SERIALIZE_TYPE" ]
+then
+    CMAKE_OPTIONS="$CMAKE_OPTIONS -DDSN_SERIALIZATION_TYPE=$SERIALIZE_TYPE"
+fi
+
 if [ "$RUN_VERBOSE" == "YES" ]
 then
     echo "RUN_VERBOSE=YES"
@@ -83,6 +90,7 @@ if [ -n "$BOOST_DIR" ]
 then
     echo "Use customized boost: $BOOST_DIR"
     CMAKE_OPTIONS="$CMAKE_OPTIONS -DBoost_NO_BOOST_CMAKE=ON -DBOOST_ROOT=$BOOST_DIR -DBoost_NO_SYSTEM_PATHS=ON"
+    export EXTRA_LDFLAGS="$EXTRA_LDFLAGS -Wl,-rpath $BOOST_DIR/lib"
 else
     echo "Use system boost"
 fi

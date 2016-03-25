@@ -36,7 +36,9 @@ function usage_build()
     echo "Options for subcommand 'build':"
     echo "   -h|--help         print the help info"
     echo "   -t|--type         build type: debug|release, default is debug"
+    echo "   -s|--serialize    serialize type: dsn|thrift|proto, default is thrift"
     echo "   -c|--clear        clear the environment before building"
+    echo "   -cc|--half-clear  only clear the environment of replication before building"
     echo "   -b|--boost_dir <dir>"
     echo "                     specify customized boost directory,"
     echo "                     if not set, then use the system boost"
@@ -47,6 +49,7 @@ function usage_build()
 function run_build()
 {
     BUILD_TYPE="debug"
+    SERIALIZE_TYPE="thrift"
     CLEAR=NO
     PART_CLEAR=NO
     BOOST_DIR=""
@@ -63,6 +66,10 @@ function run_build()
                 ;;
             -t|--type)
                 BUILD_TYPE="$2"
+                shift
+                ;;
+            -s|--serialize)
+                SERIALIZE_TYPE="$2"
                 shift
                 ;;
             -c|--clear)
@@ -99,8 +106,13 @@ function run_build()
         usage_build
         exit -1
     fi
-
-    cd replication; BUILD_TYPE="$BUILD_TYPE" CLEAR="$CLEAR" PART_CLEAR="$PART_CLEAR" \
+    if [ "$SERIALIZE_TYPE" != "dsn" -a "$SERIALIZE_TYPE" != "thrift" -a "$SERIALIZE_TYPE" != "protobuf" ]; then
+        echo "ERROR: invalid serialize type \"$SERIALIZE_TYPE\""
+        echo
+        usage_build
+        exit -1
+    fi
+    cd replication; BUILD_TYPE="$BUILD_TYPE" SERIALIZE_TYPE="$SERIALIZE_TYPE" CLEAR="$CLEAR" PART_CLEAR="$PART_CLEAR" \
         BOOST_DIR="$BOOST_DIR" WARNING_ALL="$WARNING_ALL" ENABLE_GCOV="$ENABLE_GCOV" \
         RUN_VERBOSE="$RUN_VERBOSE" TEST_MODULE="$TEST_MODULE" ./build.sh
 }
@@ -137,6 +149,7 @@ function run_start_onebox()
         exit -1
     fi
     run_clear_onebox
+    sed "s/@LOCAL_IP@/`hostname -i`/" ${ROOT}/replication/config-server.ini >${ROOT}/config-server.ini
     echo "starting server"
     mkdir onebox
     cd onebox
@@ -145,7 +158,8 @@ function run_start_onebox()
         mkdir meta$i;
         cd meta$i
         ln -s ${DSN_ROOT}/bin/rrdb/rrdb rrdb
-        ln -s ${ROOT}/replication/config-server.ini config.ini
+        ln -s ${ROOT}/config-server.ini config.ini
+        echo "cd `pwd` && ./rrdb config.ini -app_list meta@$i &>result &"
         ./rrdb config.ini -app_list meta@$i &>result &
         PID=$!
         ps -ef | grep rrdb | grep $PID
@@ -156,7 +170,8 @@ function run_start_onebox()
         mkdir replica$j
         cd replica$j
         ln -s ${DSN_ROOT}/bin/rrdb/rrdb rrdb
-        ln -s ${ROOT}/replication/config-server.ini config.ini
+        ln -s ${ROOT}/config-server.ini config.ini
+        echo "cd `pwd` && ./rrdb config.ini -app_list replica@$j &>result &"
         ./rrdb config.ini -app_list replica@$j &>result &
         PID=$!
         ps -ef | grep rrdb | grep $PID
@@ -253,7 +268,7 @@ function run_clear_onebox()
     done
     run_stop_onebox
     if [ -d onebox ]; then
-        rm -rf onebox
+        rm -rf onebox config-server.ini config-client.ini &>/dev/null
     fi
 }
 
@@ -279,7 +294,7 @@ function usage_bench()
 
 function run_bench()
 {
-    CONFIG=./replication/config-client.ini
+    CONFIG=${ROOT}/config-client.ini
     TYPE=fillseq_rrdb,readrandom_rrdb
     NUM=100000
     APP=rrdb.instance0
@@ -335,6 +350,8 @@ function run_bench()
         esac
         shift
     done
+
+    sed "s/@LOCAL_IP@/`hostname -i`/" ${ROOT}/replication/config-client.ini >${CONFIG}
 
     ./rrdb_bench --rrdb_config=${CONFIG} --benchmarks=${TYPE} --rrdb_timeout_ms=${TIMEOUT_MS} \
         --key_size=${KEY_SIZE} --value_size=${VALUE_SIZE} --threads=${THREAD} --num=${NUM} \
