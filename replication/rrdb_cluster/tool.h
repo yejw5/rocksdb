@@ -182,7 +182,7 @@ void list_apps_op(std::string status, std::string out_file, dsn::replication::cl
         status = "AS_" + status;
         s = enum_from_string(status.c_str(), dsn::replication::AS_INVALID);
         if(s == dsn::replication::AS_INVALID)
-            std::cout << "list_apps [-status <all|available|creating|creating_failed|dropping|dropping_failed|dropped>] [-o <out_file>]" << std::endl;
+            std::cout << "ls [-status <all|available|creating|creating_failed|dropping|dropping_failed|dropped>] [-o <out_file>]" << std::endl;
     }
     dsn::error_code err = client_of_dsn.list_apps(s, out_file);
     if(err == dsn::ERR_OK)
@@ -208,7 +208,7 @@ void list_app_op(std::string app_name, bool detailed, std::string out_file, dsn:
     std::cout << std::endl << "[Result]" << std::endl;
 
     if(app_name.empty())
-        std::cout << "list_app -name <app_name> [-detailed] [-o <out_file>]" << std::endl;
+        std::cout << "app -name <app_name> [-detailed] [-o <out_file>]" << std::endl;
     dsn::error_code err = client_of_dsn.list_app(app_name, detailed, out_file);
     if(err == dsn::ERR_OK)
         std::cout << "list app:" << app_name << " succeed" << std::endl;
@@ -234,7 +234,7 @@ void list_node_op(std::string status, std::string out_file, dsn::replication::cl
         status = "NS_" + status;
         s = enum_from_string(status.c_str(), dsn::replication::NS_INVALID);
         if(s == dsn::replication::NS_INVALID)
-            std::cout << "list_nodes [-status <all|alive|unalive>] [-o <out_file>]" << std::endl;
+            std::cout << "nodes [-status <all|alive|unalive>] [-o <out_file>]" << std::endl;
     }
     dsn::error_code err = client_of_dsn.list_nodes(s, out_file);
     if(err != dsn::ERR_OK)
