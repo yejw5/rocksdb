@@ -152,8 +152,6 @@ else
     echo "Build rrdb succeed"
 fi
 cd ..
-cp $BUILD_DIR/bin/rrdb_cluster/rrdb_cluster ..
-cp $BUILD_DIR/bin/rrdb_cluster/rrdb_cluster.ini ..
 
 make -C .. rrdb_bench_$BUILD_TYPE $MAKE_OPTIONS
 if [ $? -ne 0 ]

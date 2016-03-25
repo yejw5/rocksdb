@@ -24,6 +24,7 @@ function usage()
     echo "   list_onebox    list rrdb onebox"
     echo "   clear_onebox   clear_rrdb onebox"
     echo "   bench          benchmark test"
+    echo "   shell          run rrdb_cluster shell"
     echo
     echo "Command 'run.sh <command> -h' will print help for subcommands."
 }
@@ -347,6 +348,11 @@ function run_bench()
         --compression_type=none --compression_ratio=1.0
 }
 
+function run_shell()
+{
+    cd ${DSN_ROOT}/bin/rrdb_cluster && ./rrdb_cluster
+}
+
 ####################################################################
 
 if [ $# -eq 0 ]; then
@@ -381,6 +387,10 @@ case $cmd in
     bench)
         shift
         run_bench $*
+        ;;
+    shell)
+        shift
+        run_shell $*
         ;;
     *)
         echo "ERROR: unknown command $cmd"
