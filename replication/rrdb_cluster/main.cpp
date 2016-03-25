@@ -9,14 +9,15 @@
 using namespace ::dsn::apps;
 
 #define PARA_NUM 10
+#define CONFIG_FILE "rrdb_cluster.ini"
 
 int main()
 {
     printHead();
     printHelpInfo();
 
-    if (!rrdb_client_factory::initialize("config.ini")) {
-        fprintf(stderr, "ERROR: init pegasus failed\n");
+    if (!rrdb_client_factory::initialize(CONFIG_FILE)) {
+        fprintf(stderr, "ERROR: init pegasus failed: %s\n", CONFIG_FILE);
         return -1;
     }
 

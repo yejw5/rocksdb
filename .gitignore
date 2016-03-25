@@ -2,6 +2,9 @@ replication/.matchfile
 replication/builder
 onebox/
 data/
+rrdb_bench
+rrdb_cluster
+*.ini
 
 TARGETS
 make_config.mk
