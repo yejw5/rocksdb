@@ -5,8 +5,7 @@
 #include <dsn/cpp/auto_codes.h>
 #include "rrdb_client_impl.h"
 #include "rrdb_error.h"
-#include "../../src/rrdb.code.definition.h"
-#include "rrdb.client.h"
+#include "rrdb.code.definition.h"
 
 using namespace dsn;
 
@@ -17,13 +16,20 @@ namespace dsn{ namespace apps{
 std::unordered_map<int, std::string> rrdb_client_impl::_client_error_to_string;
 std::unordered_map<int, int> rrdb_client_impl::_server_error_to_client;
 
-rrdb_client_impl::rrdb_client_impl(const char* app_name, const char* cluster_name, const std::vector< ::dsn::rpc_address>& meta_servers)
-    :_app_name(app_name), _cluster(cluster_name), _client(meta_servers, app_name)
-{}
-
-const char* rrdb_client_impl::get_cluster_name() const
+rrdb_client_impl::rrdb_client_impl(const char* app_name, const std::vector< ::dsn::rpc_address>& meta_servers)
+    :_app_name(app_name), _client(meta_servers, app_name)
 {
-    return _cluster.c_str();
+    for (auto& addr : meta_servers) {
+        if (!_cluster_meta_servers.empty()) {
+            _cluster_meta_servers += ",";
+        }
+        _cluster_meta_servers += addr.to_string();
+    }
+}
+
+const char* rrdb_client_impl::get_cluster_meta_servers() const
+{
+    return _cluster_meta_servers.c_str();
 }
 
 const char* rrdb_client_impl::get_app_name() const
