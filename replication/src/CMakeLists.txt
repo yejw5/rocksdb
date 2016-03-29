@@ -22,6 +22,7 @@ set(MY_PROJ_LIBS
     thrift
     shmcounter
     event
+    mysqlcppconn
     )
 
 if (UNIX)
