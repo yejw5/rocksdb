@@ -4,6 +4,7 @@
 # include "rrdb.check.h"
 # include "pegasus.perf_counter.h"
 # include "pegasus_owl_updater.h"
+# include "info_collector_app.h"
 
 int main(int argc, char** argv)
 {
@@ -13,6 +14,7 @@ int main(int argc, char** argv)
     // register all possible services
     dsn::register_app< ::dsn::service::meta_service_app>("meta");
     dsn::register_app< ::dsn::replication::replication_service_app>("replica");
+    dsn::register_app< ::pegasus::apps::info_collector_app>("collector");
     dsn::register_app< ::dsn::apps::rrdb_client_app>("client");
     dsn::register_app< ::dsn::apps::rrdb_perf_test_client_app>("client.perf");
 
