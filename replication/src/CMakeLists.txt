@@ -21,6 +21,7 @@ set(MY_PROJ_LIBS
     zookeeper_mt
     shmcounter
     event
+    mysqlcppconn
     )
 
 if (UNIX)
