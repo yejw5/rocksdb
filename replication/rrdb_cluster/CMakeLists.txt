@@ -31,7 +31,7 @@ set(MY_BINPLACES ${RES_FILES})
 if (UNIX)
     SET(CMAKE_INSTALL_RPATH ".")
     SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so" "${DSN_ROOT}/lib/librrdb.clientlib.so")
+    set(MY_BINPLACES ${MY_BINPLACES} "${DSN_ROOT}/lib/libdsn.core.so" "${CMAKE_BINARY_DIR}/lib/librrdb.clientlib.so")
 endif()
 
 dsn_add_executable()
