@@ -11,12 +11,11 @@
 //
 // # define DSN_USE_THRIFT_SERIALIZATION
 
-# include <dsn/service_api_cpp.h>
-
 # ifdef DSN_USE_THRIFT_SERIALIZATION
 
-# include <dsn/idl/thrift_helper.h>
+
 # include "rrdb_types.h" 
+
 
 # else // use rDSN's data encoding/decoding
 
@@ -32,18 +31,18 @@ namespace dsn { namespace apps {
     {
         marshall(writer, val.key);
         marshall(writer, val.value);
-    };
+    }
 
     inline void unmarshall(::dsn::binary_reader& reader, /*out*/ update_request& val)
     {
         unmarshall(reader, val.key);
         unmarshall(reader, val.value);
-    };
+    }
 
     // ---------- read_response -------------
     struct read_response
     {
-        int error;
+        int32_t error;
         std::string value;
     };
 
@@ -51,13 +50,13 @@ namespace dsn { namespace apps {
     {
         marshall(writer, val.error);
         marshall(writer, val.value);
-    };
+    }
 
     inline void unmarshall(::dsn::binary_reader& reader, /*out*/ read_response& val)
     {
         unmarshall(reader, val.error);
         unmarshall(reader, val.value);
-    };
+    }
 
 } } 
 

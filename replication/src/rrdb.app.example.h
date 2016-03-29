@@ -1,9 +1,10 @@
 # pragma once
 # include "rrdb.client.h"
-# include "rrdb.client.perf.h"
+# include "rrdb.client.perf.impl.h"
 # include "rrdb.server.h"
 
 namespace dsn { namespace apps { 
+
 // client app example
 class rrdb_client_app : 
     public ::dsn::service_app,
@@ -44,7 +45,7 @@ public:
             update_request req;
             //sync:
             error_code err;
-            int resp;
+            int32_t resp;
             std::tie(err, resp) = _rrdb_client->put_sync(req);
             std::cout << "call RPC_RRDB_RRDB_PUT end, return " << err.to_string() << std::endl;
             //async: 
@@ -55,7 +56,7 @@ public:
             ::dsn::blob req;
             //sync:
             error_code err;
-            int resp;
+            int32_t resp;
             std::tie(err, resp) = _rrdb_client->remove_sync(req);
             std::cout << "call RPC_RRDB_RRDB_REMOVE end, return " << err.to_string() << std::endl;
             //async: 
@@ -66,7 +67,7 @@ public:
             update_request req;
             //sync:
             error_code err;
-            int resp;
+            int32_t resp;
             std::tie(err, resp) = _rrdb_client->merge_sync(req);
             std::cout << "call RPC_RRDB_RRDB_MERGE end, return " << err.to_string() << std::endl;
             //async: 
@@ -113,7 +114,7 @@ public:
         std::vector< ::dsn::rpc_address> meta_servers;
         ::dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
 
-        _rrdb_client.reset(new rrdb_perf_test_client(meta_servers, argv[1]));
+        _rrdb_client.reset(new rrdb_perf_test_client_impl(meta_servers, argv[1]));
         _rrdb_client->start_test();
         return ::dsn::ERR_OK;
     }

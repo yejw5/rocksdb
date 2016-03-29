@@ -4,6 +4,7 @@
 # include <iostream>
 
 namespace dsn { namespace apps { 
+
 class rrdb_service 
     : public ::dsn::replication::replication_app_base
 {
@@ -22,24 +23,24 @@ public:
 protected:
     // all service handlers to be implemented further
     // RPC_RRDB_RRDB_PUT 
-    virtual void on_put(const update_request& update, ::dsn::replication::rpc_replication_app_replier<int>& reply)
+    virtual void on_put(const update_request& update, ::dsn::replication::rpc_replication_app_replier<int32_t>& reply)
     {
         std::cout << "... exec RPC_RRDB_RRDB_PUT ... (not implemented) " << std::endl;
-        int resp;
+        int32_t resp;
         reply(resp);
     }
     // RPC_RRDB_RRDB_REMOVE 
-    virtual void on_remove(const ::dsn::blob& key, ::dsn::replication::rpc_replication_app_replier<int>& reply)
+    virtual void on_remove(const ::dsn::blob& key, ::dsn::replication::rpc_replication_app_replier<int32_t>& reply)
     {
         std::cout << "... exec RPC_RRDB_RRDB_REMOVE ... (not implemented) " << std::endl;
-        int resp;
+        int32_t resp;
         reply(resp);
     }
     // RPC_RRDB_RRDB_MERGE 
-    virtual void on_merge(const update_request& update, ::dsn::replication::rpc_replication_app_replier<int>& reply)
+    virtual void on_merge(const update_request& update, ::dsn::replication::rpc_replication_app_replier<int32_t>& reply)
     {
         std::cout << "... exec RPC_RRDB_RRDB_MERGE ... (not implemented) " << std::endl;
-        int resp;
+        int32_t resp;
         reply(resp);
     }
     // RPC_RRDB_RRDB_GET 

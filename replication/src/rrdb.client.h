@@ -4,6 +4,7 @@
 # include <iostream>
 
 namespace dsn { namespace apps { 
+
 class rrdb_client 
     : public ::dsn::replication::replication_app_client_base
 {
@@ -18,12 +19,12 @@ public:
 
     // ---------- call RPC_RRDB_RRDB_PUT ------------
     // - synchronous  
-    std::pair< ::dsn::error_code, int> put_sync(
+    std::pair< ::dsn::error_code, int32_t> put_sync(
         const update_request& update,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(0)
         )
     {
-        return dsn::rpc::wait_and_unwrap<int>(
+        return dsn::rpc::wait_and_unwrap<int32_t>(
             ::dsn::replication::replication_app_client_base::write(
                 get_key_hash(update),
                 RPC_RRDB_RRDB_PUT,
@@ -36,7 +37,7 @@ public:
             );
     }
  
-    // - asynchronous with on-stack update_request and int 
+    // - asynchronous with on-stack update_request and int32_t 
     template<typename TCallback>
     ::dsn::task_ptr put(
         const update_request& update,
@@ -58,12 +59,12 @@ public:
 
     // ---------- call RPC_RRDB_RRDB_REMOVE ------------
     // - synchronous  
-    std::pair< ::dsn::error_code, int> remove_sync(
+    std::pair< ::dsn::error_code, int32_t> remove_sync(
         const ::dsn::blob& key,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(0)
         )
     {
-        return dsn::rpc::wait_and_unwrap<int>(
+        return dsn::rpc::wait_and_unwrap<int32_t>(
             ::dsn::replication::replication_app_client_base::write(
                 get_key_hash(key),
                 RPC_RRDB_RRDB_REMOVE,
@@ -76,7 +77,7 @@ public:
             );
     }
  
-    // - asynchronous with on-stack ::dsn::blob and int 
+    // - asynchronous with on-stack ::dsn::blob and int32_t 
     template<typename TCallback>
     ::dsn::task_ptr remove(
         const ::dsn::blob& key,
@@ -98,12 +99,12 @@ public:
 
     // ---------- call RPC_RRDB_RRDB_MERGE ------------
     // - synchronous  
-    std::pair< ::dsn::error_code, int> merge_sync(
+    std::pair< ::dsn::error_code, int32_t> merge_sync(
         const update_request& update,
         std::chrono::milliseconds timeout = std::chrono::milliseconds(0)
         )
     {
-        return dsn::rpc::wait_and_unwrap<int>(
+        return dsn::rpc::wait_and_unwrap<int32_t>(
             ::dsn::replication::replication_app_client_base::write(
                 get_key_hash(update),
                 RPC_RRDB_RRDB_MERGE,
@@ -116,7 +117,7 @@ public:
             );
     }
  
-    // - asynchronous with on-stack update_request and int 
+    // - asynchronous with on-stack update_request and int32_t 
     template<typename TCallback>
     ::dsn::task_ptr merge(
         const update_request& update,

@@ -1,8 +1,8 @@
 # pragma once
 # include "rrdb.client.h"
 
-namespace dsn { namespace apps {  
-
+namespace dsn { namespace apps { 
+ 
  
 class rrdb_perf_test_client 
     : public rrdb_client, 
@@ -47,23 +47,19 @@ public:
         start(suits);
     }                
 
-    void send_one_put(int payload_bytes, int key_space_size)
+    virtual void send_one_put(int payload_bytes, int key_space_size)
     {
         update_request req;
-        
-        auto rs = random64(0, 10000000) % key_space_size;
-        binary_writer writer(payload_bytes < 128 ? 128 : payload_bytes);
-        writer.write("key.", 4);
-        writer.write(rs);
-        req.key = writer.get_buffer();
 
-        while (writer.total_size() < payload_bytes)
-            writer.write(req.key);
-        req.value = writer.get_buffer();
-        
+        // TODO: randomize the value of req
+        // auto rs = random64(0, 10000000) % key_space_size;
+        // std::stringstream ss;
+        // ss << "key." << rs;
+        // req = ss.str();
+
         put(
             req,
-            [this, context = prepare_send_one()](error_code err, int&& resp)
+            [this, context = prepare_send_one()](error_code err, int32_t&& resp)
             {
                 end_send_one(context, err);
             },
@@ -71,19 +67,19 @@ public:
             );
     }
 
-    void send_one_remove(int payload_bytes, int key_space_size)
+    virtual void send_one_remove(int payload_bytes, int key_space_size)
     {
         ::dsn::blob req;
 
-        auto rs = random64(0, 10000000) % key_space_size;
-        binary_writer writer;
-        writer.write("key.", 4);
-        writer.write(rs);
-        req = writer.get_buffer();
-                
+        // TODO: randomize the value of req
+        // auto rs = random64(0, 10000000) % key_space_size;
+        // std::stringstream ss;
+        // ss << "key." << rs;
+        // req = ss.str();
+
         remove(
             req,
-            [this, context = prepare_send_one()](error_code err, int&& resp)
+            [this, context = prepare_send_one()](error_code err, int32_t&& resp)
             {
                 end_send_one(context, err);
             },
@@ -91,23 +87,19 @@ public:
             );
     }
 
-    void send_one_merge(int payload_bytes, int key_space_size)
+    virtual void send_one_merge(int payload_bytes, int key_space_size)
     {
         update_request req;
 
-        auto rs = random64(0, 10000000) % key_space_size;
-        binary_writer writer(payload_bytes < 128 ? 128 : payload_bytes);
-        writer.write("key.", 4);
-        writer.write(rs);
-        req.key = writer.get_buffer();
-
-        while (writer.total_size() < payload_bytes)
-            writer.write(req.key);
-        req.value = writer.get_buffer();
+        // TODO: randomize the value of req
+        // auto rs = random64(0, 10000000) % key_space_size;
+        // std::stringstream ss;
+        // ss << "key." << rs;
+        // req = ss.str();
 
         merge(
             req,
-            [this, context = prepare_send_one()](error_code err, int&& resp)
+            [this, context = prepare_send_one()](error_code err, int32_t&& resp)
             {
                 end_send_one(context, err);
             },
@@ -115,16 +107,16 @@ public:
             );
     }
 
-    void send_one_get(int payload_bytes, int key_space_size)
+    virtual void send_one_get(int payload_bytes, int key_space_size)
     {
         ::dsn::blob req;
 
-        auto rs = random64(0, 10000000) % key_space_size;
-        binary_writer writer;
-        writer.write("key.", 4);
-        writer.write(rs);
-        req = writer.get_buffer();
-        
+        // TODO: randomize the value of req
+        // auto rs = random64(0, 10000000) % key_space_size;
+        // std::stringstream ss;
+        // ss << "key." << rs;
+        // req = ss.str();
+
         get(
             req,
             [this, context = prepare_send_one()](error_code err, read_response&& resp)
