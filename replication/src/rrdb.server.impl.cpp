@@ -221,7 +221,7 @@ namespace dsn {
             }
         }
 
-        void rrdb_service_impl::on_put(const update_request& update, ::dsn::rpc_replier<int>& reply)
+        void rrdb_service_impl::on_put(const update_request& update, ::dsn::replication::rpc_replication_app_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
@@ -242,7 +242,7 @@ namespace dsn {
             }
         }
 
-        void rrdb_service_impl::on_remove(const ::dsn::blob& key, ::dsn::rpc_replier<int>& reply)
+        void rrdb_service_impl::on_remove(const ::dsn::blob& key, ::dsn::replication::rpc_replication_app_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
@@ -262,7 +262,7 @@ namespace dsn {
             }
         }
 
-        void rrdb_service_impl::on_merge(const update_request& update, ::dsn::rpc_replier<int>& reply)
+        void rrdb_service_impl::on_merge(const update_request& update, ::dsn::replication::rpc_replication_app_replier<int>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
@@ -283,7 +283,7 @@ namespace dsn {
             }
         }
 
-        void rrdb_service_impl::on_get(const ::dsn::blob& key, ::dsn::rpc_replier<read_response>& reply)
+        void rrdb_service_impl::on_get(const ::dsn::blob& key, ::dsn::replication::rpc_replication_app_replier<read_response>& reply)
         {
             dassert(_is_open, "rrdb service %s is not ready", data_dir().c_str());
 
