@@ -18,16 +18,16 @@ public:
     virtual ~irrdb_client(){}
 
     ///
-    /// \brief get_cluster_name
-    /// a cluster is a set of physical computers that used to form a k-v system.
-    /// we indicate the cluster using a cluster name.
+    /// \brief get_cluster_meta_servers
+    /// a cluster is identified by a list of meta servers.
+    /// we identify a cluster by address list of meta servers, format as "ip:port,ip:port,ip:port".
     /// \return
     ///
-    virtual const char* get_cluster_name() const = 0;
+    virtual const char* get_cluster_meta_servers() const = 0;
 
     ///
     /// \brief get_app_name
-    /// an app is a logical isolated k-v store.
+    /// an app is a logical isolated table.
     /// a cluster can have multiple apps.
     /// \return
     ///
@@ -129,12 +129,13 @@ public:
     /// \param app_name
     /// an app is a logical isolated k-v store.
     /// a cluster can have multiple apps.
-    /// \param cluster_name
-    /// a cluster is a set of physical computers that used to form a k-v system.
-    /// we indicate the cluster using a cluster name.
+    /// \param cluster_meta_servers
+    /// a cluster is identified by a list of meta servers.
+    /// we identigy a cluster by address list of meta servers, format as "ip:port,ip:port,ip:port".
+    /// if "", means using meta servers specified in the section of [replication.meta_servers] of config file.
     /// \return
     /// the client instance. DO NOT delete this client even after usage.
-    static irrdb_client* get_client(const char* app_name, const char* cluster_name = "");
+    static irrdb_client* get_client(const char* app_name, const char* cluster_meta_servers = "");
 };
 
 }} //namespace

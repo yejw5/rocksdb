@@ -33,10 +33,10 @@ public:
 class rrdb_client_impl : public irrdb_client
 {
 public:
-    rrdb_client_impl(const char* app_name, const char* cluster_name, const std::vector< ::dsn::rpc_address>& meta_servers);
+    rrdb_client_impl(const char* app_name, const std::vector< ::dsn::rpc_address>& meta_servers);
     virtual ~rrdb_client_impl(){}
 
-    virtual const char* get_cluster_name() const override;
+    virtual const char* get_cluster_meta_servers() const override;
 
     virtual const char* get_app_name() const override;
 
@@ -71,7 +71,7 @@ private:
 
 private:
     rrdb_client_hash_key _client;
-    std::string _cluster;
+    std::string _cluster_meta_servers;
     std::string _app_name;
 
     ///
