@@ -1,5 +1,11 @@
 #include <iostream>
 #include "info_collector.h"
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+ #include <iomanip>
+#include  <sys/types.h>
+#include  <sys/socket.h>
 
 using namespace dsn;
 using namespace dsn::replication;
@@ -8,6 +14,7 @@ namespace pegasus{ namespace apps{
 
 info_collector::info_collector()
 {
+    std::cout << "ctor" << std::endl;
     replication_app_client_base::load_meta_servers(meta_server_vector);
 
     _meta_servers.assign_group(dsn_group_build("meta.servers"));
@@ -24,18 +31,23 @@ info_collector::info_collector()
 
     _con = _driver->connect(_mysql_host, _mysql_user, _mysql_passwd);
     _con->setSchema(_mysql_database);
+    _flag.clear();
 }
 
 void info_collector::on_collect()
 {
+    std::cout << "on collect" << std::endl;
     if(_flag.test_and_set())
         return;
     update_meta();
     //update_apps();
+    _flag.clear();
 }
 
 dsn::error_code info_collector::update_meta()
 {
+    std::cout << "update meta" << std::endl;
+
     std::shared_ptr<configuration_list_apps_request> req(new configuration_list_apps_request());
     req->status = AS_INVALID;
     for(auto& m : meta_server_vector)
@@ -45,10 +57,14 @@ dsn::error_code info_collector::update_meta()
             RPC_CM_LIST_APPS,
             req
             );
+        std::cout << "before wait" << std::endl;
         resp_task->wait();
+        std::cout << "after wait" << std::endl;
+
 
         if (resp_task->error() == dsn::ERR_OK)
         {
+            std::cout << "ok" << std::endl;
             update_meta_info(m);
         }
     }
@@ -57,17 +73,39 @@ dsn::error_code info_collector::update_meta()
 
 dsn::error_code info_collector::update_meta_info(dsn::rpc_address addr)
 {
+    //struct sockaddr _addr;
+    struct sockaddr_in addr2;// = (struct sockaddr_in*)&_addr;
+    //addr2->sin_port = htonl(addr.port());
+    //addr2->sin_addr.s_addr = htonl(addr.ip());
+    if (inet_pton(AF_INET, "10.108.187.16", &addr2.sin_addr) < 0)
+           printf("pton error\n");
+    std::cout << addr.ip() << ":" << addr.port() << std::endl;
+    char hn[100];
+    char sn[100];
+    addr2.sin_port = htons(80);
+    addr2.sin_family = AF_INET;
+    
+    if (getnameinfo((struct sockaddr*)&addr2, sizeof(sockaddr), hn, sizeof(hn), sn, sizeof(sn), NI_NAMEREQD))
+        printf("could not resolve hostname\n");
+    else
+        printf("host=%s\n", hn);
     sql::Statement* stmt = _con->createStatement();
-    sql::ResultSet* res = stmt->executeQuery("SELECT 'host' AS _message from monitor_task");
+    std::stringstream ss;
+    ss << "UPDATE monitor_task SET last_attempt_time=now(), last_success_time=now() WHERE host='" << hn << "' AND port=" << addr.port() << ";";
+    std::cout << ss.str() << std::endl;
+    //sql::ResultSet* res = stmt->executeQuery("SELECT host AS _message from monitor_task");
+    
+    try {
+        int count = stmt->executeUpdate(ss.str().c_str());
+        std::cout << "update count:" << count << std::endl;
+} catch (sql::SQLException &e) {
+  std::cout << "# ERR: SQLException in " << __FILE__;
+  std::cout << "(" << __FUNCTION__ << ") on line " << __LINE__ << std::endl;
+  std::cout << "# ERR: " << e.what();
+  std::cout << " (MySQL error code: " << e.getErrorCode();
+  std::cout << ", SQLState: " << e.getSQLState() << " )" << std::endl;
+}
 
-    while (res->next()) {
-      std::cout << "\t... MySQL replies: ";
-      /* Access column data by alias or column name */
-      std::cout << res->getString("_message") << std::endl;
-      std::cout << "\t... MySQL says it again: ";
-      /* Access column fata by numeric offset, 1 is the first column */
-      std::cout << res->getString(1) << std::endl;
-    }
     return ERR_OK;
 }
 
