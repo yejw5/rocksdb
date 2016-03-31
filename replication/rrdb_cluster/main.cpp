@@ -1,5 +1,3 @@
-// Copyright (c) 2016 xiaomi.com, Inc. All Rights Reserved.
-
 #include <stdio.h>
 #include <iostream>
 #include "tool.h"
