@@ -1,4 +1,8 @@
 #include <iostream>
+#include <functional>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include "info_collector.h"
 
 using namespace dsn;
@@ -12,7 +16,20 @@ info_collector::info_collector()
 
     _meta_servers.assign_group(dsn_group_build("meta.servers"));
     for (auto& m : meta_server_vector)
+    {
         dsn_group_add(_meta_servers.group_handle(), m.c_addr());
+    }
+
+    for (int i = 0; i < meta_server_vector.size(); i++)
+    {
+        dsn::rpc_address target;
+        target.assign_group(dsn_group_build("meta_leader"));
+        for (auto& n : meta_server_vector)
+        {
+            dsn_group_add(target.group_handle(), n.c_addr());
+        }
+        _meta_leaders.push_back(target);
+    }
 
     _mysql_host = dsn_config_get_value_string("info_collector", "host", "", "mysql host");
     _mysql_user = dsn_config_get_value_string("info_collector", "user", "", "mysql user");
@@ -21,63 +38,89 @@ info_collector::info_collector()
 
     // initialize mysql server connection
     _driver = get_driver_instance();
-
-    _con = _driver->connect(_mysql_host, _mysql_user, _mysql_passwd);
-    _con->setSchema(_mysql_database);
+    _flag.clear();
 }
 
 void info_collector::on_collect()
 {
     if(_flag.test_and_set())
         return;
+    _con = _driver->connect(_mysql_host, _mysql_user, _mysql_passwd);
+    _con->setSchema(_mysql_database);
+
+    _running_count.fetch_add(1);
     update_meta();
     //update_apps();
+    on_finish();
 }
 
 dsn::error_code info_collector::update_meta()
 {
-    std::shared_ptr<configuration_list_apps_request> req(new configuration_list_apps_request());
-    req->status = AS_INVALID;
-    for(auto& m : meta_server_vector)
+    _running_count.fetch_add(meta_server_vector.size());
+    for(int i = 0; i < meta_server_vector.size(); i++)
     {
-        dsn_group_set_leader(_meta_servers.group_handle(), m.c_addr());
-        auto resp_task = request_meta(
-            RPC_CM_LIST_APPS,
-            req
-            );
-        resp_task->wait();
+        configuration_list_apps_request req;
+        req.status = AS_INVALID;
 
-        if (resp_task->error() == dsn::ERR_OK)
+        auto m = meta_server_vector[i];
+        dsn::rpc_address target = _meta_leaders[i];
+        dsn_group_set_leader(target.group_handle(), m.c_addr());
+
+        //typedef void* callback(dsn::error_code, configuration_list_apps_response);
+        //callback* cb = std::bind(&info_collector::on_update_meta, this, m, std::placeholders::_1, std::placeholders::_2).target<callback>();
+        //request_meta(target, RPC_CM_LIST_APPS, req, cb);
+        request_meta(target, RPC_CM_LIST_APPS, req, std::forward<std::function<void(dsn::error_code, configuration_list_apps_response)>>(std::bind(&info_collector::on_update_meta, this, m, std::placeholders::_1, std::placeholders::_2)));
+    }
+}
+
+
+void info_collector::on_update_meta(dsn::rpc_address addr, dsn::error_code error, configuration_list_apps_response resp)
+{
+    if(error != dsn::ERR_OK)
+    {
+        derror("update meta fail, error = %s", dsn_error_to_string(error));
+        on_finish();
+        return;
+    }
+    else
+    {
+        struct sockaddr_in addr2;
+        if (inet_pton(AF_INET, "10.108.187.16", &addr2.sin_addr) < 0)
         {
-            update_meta_info(m);
+            derror("pton error\n");
+            on_finish();
+            return;
+        }
+        char hn[100];
+        addr2.sin_family = AF_INET;
+        if (getnameinfo((struct sockaddr*)&addr2, sizeof(sockaddr), hn, sizeof(hn), nullptr, 0, NI_NAMEREQD))
+        {
+            derror("could not resolve hostname\n");
+            on_finish();
+            return;
+        }
+        sql::Statement* stmt = _con->createStatement();
+        std::stringstream ss;
+        ss << "UPDATE monitor_task SET last_attempt_time=now(), last_success_time=now() WHERE host='" << hn << "' AND port=" << addr.port() << ";";
+        try {
+            int count = stmt->executeUpdate(ss.str().c_str());
+            std::cout << "update count:" << count << std::endl;
+        } catch (sql::SQLException &e) {
+            derror("SQLException, code:%d, err:%s, state:%s", e.getErrorCode(), e.what(), e.getSQLState().c_str());
+            on_finish();
         }
     }
 }
 
-
-dsn::error_code info_collector::update_meta_info(dsn::rpc_address addr)
-{
-    sql::Statement* stmt = _con->createStatement();
-    sql::ResultSet* res = stmt->executeQuery("SELECT 'host' AS _message from monitor_task");
-
-    while (res->next()) {
-      std::cout << "\t... MySQL replies: ";
-      /* Access column data by alias or column name */
-      std::cout << res->getString("_message") << std::endl;
-      std::cout << "\t... MySQL says it again: ";
-      /* Access column fata by numeric offset, 1 is the first column */
-      std::cout << res->getString(1) << std::endl;
-    }
-    return ERR_OK;
-}
-
+/*
 dsn::error_code info_collector::update_apps()
 {
     std::shared_ptr<configuration_list_apps_request> req(new configuration_list_apps_request());
     req->status = AS_INVALID;
     auto resp_task = request_meta(
         RPC_CM_LIST_APPS,
-        req
+        req,
+
         );
 
     resp_task->wait();
@@ -99,14 +142,25 @@ dsn::error_code info_collector::update_apps()
         app_info info = resp.infos[i];
         update_app_info(info);
     }
+}*/
+
+// on finish
+void info_collector::on_finish()
+{
+    int count = _running_count.fetch_sub(1);
+    if(count == 0)
+    {
+        _flag.clear();
+    }
 }
 
 // mysql updates
+/*
 dsn::error_code info_collector::update_app_info(app_info info)
 {
 
 }
-
+*/
 
 // request
 void info_collector::end_meta_request(task_ptr callback, int retry_times, error_code err, dsn_message_t request, dsn_message_t resp)
