@@ -20,9 +20,6 @@ info_collector_app::~info_collector_app()
 
 dsn::error_code info_collector_app::start(int argc, char** argv)
 {
-    if (argc < 2)
-        return ::dsn::ERR_INVALID_PARAMETERS;
-
     std::vector< ::dsn::rpc_address> meta_servers;
     ::dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
 
