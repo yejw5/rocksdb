@@ -38,6 +38,7 @@ info_collector::info_collector()
 
     // initialize mysql server connection
     _driver = get_driver_instance();
+
     _flag.clear();
 }
 
@@ -45,8 +46,23 @@ void info_collector::on_collect()
 {
     if(_flag.test_and_set())
         return;
-    _con = _driver->connect(_mysql_host, _mysql_user, _mysql_passwd);
-    _con->setSchema(_mysql_database);
+
+    try {
+        sql::ConnectOptionsMap connection_properties;
+        connection_properties["OPT_RECONNECT"]=true;
+        connection_properties["hostName"] = _mysql_host;
+        connection_properties["userName"] = _mysql_user;
+        connection_properties["password"] = _mysql_passwd;
+        connection_properties["OPT_CONNECT_TIMEOUT"] = 20;
+
+        _con = _driver->connect(connection_properties);
+        _con->setSchema(_mysql_database);
+    }
+    catch (sql::SQLException &e) {
+        derror("SQLException, code:%d, err:%s, state:%s", e.getErrorCode(), e.what(), e.getSQLState().c_str());
+        _flag.clear();
+        return;
+    }
 
     _running_count.fetch_add(1);
     update_meta();
@@ -54,7 +70,7 @@ void info_collector::on_collect()
     on_finish();
 }
 
-dsn::error_code info_collector::update_meta()
+void info_collector::update_meta()
 {
     _running_count.fetch_add(meta_server_vector.size());
     for(int i = 0; i < meta_server_vector.size(); i++)
@@ -65,16 +81,12 @@ dsn::error_code info_collector::update_meta()
         auto m = meta_server_vector[i];
         dsn::rpc_address target = _meta_leaders[i];
         dsn_group_set_leader(target.group_handle(), m.c_addr());
-
-        //typedef void* callback(dsn::error_code, configuration_list_apps_response);
-        //callback* cb = std::bind(&info_collector::on_update_meta, this, m, std::placeholders::_1, std::placeholders::_2).target<callback>();
-        //request_meta(target, RPC_CM_LIST_APPS, req, cb);
-        request_meta(target, RPC_CM_LIST_APPS, req, std::forward<std::function<void(dsn::error_code, configuration_list_apps_response)>>(std::bind(&info_collector::on_update_meta, this, m, std::placeholders::_1, std::placeholders::_2)));
+        request_meta(target, RPC_CM_LIST_APPS, req, std::forward<std::function<void(dsn::error_code, configuration_list_apps_response)>>(std::bind(&info_collector::on_update_meta, this, target, m, std::placeholders::_1, std::placeholders::_2)));
     }
 }
 
 
-void info_collector::on_update_meta(dsn::rpc_address addr, dsn::error_code error, configuration_list_apps_response resp)
+void info_collector::on_update_meta(dsn::rpc_address all, dsn::rpc_address addr, dsn::error_code error, configuration_list_apps_response resp)
 {
     if(error != dsn::ERR_OK)
     {
@@ -85,30 +97,36 @@ void info_collector::on_update_meta(dsn::rpc_address addr, dsn::error_code error
     else
     {
         struct sockaddr_in addr2;
-        if (inet_pton(AF_INET, "10.108.187.16", &addr2.sin_addr) < 0)
+        addr2.sin_addr.s_addr = htonl(addr.ip());
+        /*
+        if (inet_pton(AF_INET, "", &addr2.sin_addr) < 0)
         {
             derror("pton error\n");
             on_finish();
             return;
         }
+        */
         char hn[100];
         addr2.sin_family = AF_INET;
         if (getnameinfo((struct sockaddr*)&addr2, sizeof(sockaddr), hn, sizeof(hn), nullptr, 0, NI_NAMEREQD))
         {
-            derror("could not resolve hostname\n");
-            on_finish();
-            return;
+            inet_ntop(AF_INET, &(addr2.sin_addr), hn, 100);
         }
-        sql::Statement* stmt = _con->createStatement();
-        std::stringstream ss;
-        ss << "UPDATE monitor_task SET last_attempt_time=now(), last_success_time=now() WHERE host='" << hn << "' AND port=" << addr.port() << ";";
         try {
+            dsn::service::zauto_lock l(_lock);
+            std::stringstream ss;
+            ss << "UPDATE monitor_task SET last_attempt_time=now(), last_success_time=now() , master=";
+            ss << dsn_group_is_leader(all.group_handle(), addr.c_addr())?"1":"0";
+            ss << " WHERE host='";
+            ss << hn << "' AND port=" << addr.port() << ";";
+            std::cout << ss.str() <<  std::endl;
+            sql::Statement* stmt = _con->createStatement();
             int count = stmt->executeUpdate(ss.str().c_str());
             std::cout << "update count:" << count << std::endl;
         } catch (sql::SQLException &e) {
             derror("SQLException, code:%d, err:%s, state:%s", e.getErrorCode(), e.what(), e.getSQLState().c_str());
-            on_finish();
         }
+        on_finish();
     }
 }
 
@@ -150,6 +168,7 @@ void info_collector::on_finish()
     int count = _running_count.fetch_sub(1);
     if(count == 0)
     {
+        delete _con;
         _flag.clear();
     }
 }

@@ -24,11 +24,11 @@ public:
 private:
     void on_finish();
 
-    dsn::error_code update_meta();
+    void update_meta();
     //dsn::error_code update_apps();
 
     // mysql update
-    void on_update_meta(dsn::rpc_address addr, dsn::error_code error, configuration_list_apps_response resp);
+    void on_update_meta(dsn::rpc_address all, dsn::rpc_address addr, dsn::error_code error, configuration_list_apps_response resp);
     //dsn::error_code update_app_info(app_info);
 
     void end_meta_request(task_ptr callback, int retry_times, error_code err, dsn_message_t request, dsn_message_t resp);
@@ -74,6 +74,7 @@ private:
     std::string _mysql_passwd;
     std::string _mysql_database;
 
+    dsn::service::zlock _lock;
     sql::Driver *_driver;
     sql::Connection *_con;
 };
