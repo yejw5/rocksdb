@@ -43,7 +43,7 @@ namespace dsn { namespace apps {
     struct read_response
     {
         int32_t error;
-        std::string value;
+        ::dsn::blob value;
     };
 
     inline void marshall(::dsn::binary_writer& writer, const read_response& val)

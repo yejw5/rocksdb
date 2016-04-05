@@ -11,8 +11,8 @@ struct update_request
 
 struct read_response
 {
-    1:i32      error;
-    2:string   value;
+    1:i32           error;
+    2:dsn.blob      value;
 }
 
 service rrdb

@@ -3,7 +3,6 @@
 
 namespace dsn { namespace apps { 
  
- 
 class rrdb_perf_test_client 
     : public rrdb_client, 
       public ::dsn::service::perf_client_helper 

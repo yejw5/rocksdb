@@ -129,7 +129,7 @@ void read_response::__set_error(const int32_t val) {
   this->error = val;
 }
 
-void read_response::__set_value(const std::string& val) {
+void read_response::__set_value(const  ::dsn::blob& val) {
   this->value = val;
 }
 
@@ -163,8 +163,8 @@ uint32_t read_response::read(::apache::thrift::protocol::TProtocol* iprot) {
         }
         break;
       case 2:
-        if (ftype == ::apache::thrift::protocol::T_STRING) {
-          xfer += iprot->readString(this->value);
+        if (ftype == ::apache::thrift::protocol::T_STRUCT) {
+          xfer += this->value.read(iprot);
           this->__isset.value = true;
         } else {
           xfer += iprot->skip(ftype);
@@ -191,8 +191,8 @@ uint32_t read_response::write(::apache::thrift::protocol::TProtocol* oprot) cons
   xfer += oprot->writeI32(this->error);
   xfer += oprot->writeFieldEnd();
 
-  xfer += oprot->writeFieldBegin("value", ::apache::thrift::protocol::T_STRING, 2);
-  xfer += oprot->writeString(this->value);
+  xfer += oprot->writeFieldBegin("value", ::apache::thrift::protocol::T_STRUCT, 2);
+  xfer += this->value.write(oprot);
   xfer += oprot->writeFieldEnd();
 
   xfer += oprot->writeFieldStop();

@@ -18,6 +18,7 @@ public:
     virtual uint64_t get_key_hash(const ::dsn::blob& key)
     {
         dassert(key.length() > 4, "key length must be greater than 4");
+        // TODO(qinzuoyan): little endian
         int length = *((int*)key.data());
         dassert(key.length() >= 4 + length, "key length must be greater than 4 + hash_key length");
         dsn::blob hash_key(key.buffer_ptr(), 4, length);

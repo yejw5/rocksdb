@@ -71,7 +71,7 @@ int rrdb_client_impl::get(
     generate_key(req, hash_key, sort_key);
     auto pr = _client.get_sync(req, std::chrono::milliseconds(timeout_milliseconds));
     if(pr.first == ERR_OK)
-        value.assign(pr.second.value);
+        value.assign(pr.second.value.data(), pr.second.value.length());
     return get_client_error(pr.first == ERR_OK ? get_rocksdb_server_error(pr.second.error) : pr.first.get());
 }
 
@@ -139,6 +139,7 @@ const char* rrdb_client_impl::get_error_string(int error_code) const
 {
     int len = 4 + hash_key.size() + sort_key.size();
     char* buf = new char[len];
+    // TODO(qinzuoyan): little endian
     *(int*)buf = hash_key.size();
     hash_key.copy(buf + 4, hash_key.size(), 0);
     sort_key.copy(buf + 4 + hash_key.size(), sort_key.size(), 0);

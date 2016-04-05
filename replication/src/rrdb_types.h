@@ -7,7 +7,6 @@
 #ifndef rrdb_TYPES_H
 #define rrdb_TYPES_H
 
-#include <dsn/service_api_cpp.h>
 #include <iosfwd>
 
 #include <thrift/Thrift.h>
@@ -16,6 +15,8 @@
 #include <thrift/transport/TTransport.h>
 
 #include <thrift/cxxfunctional.h>
+#include <dsn/service_api_cpp.h>
+
 
 namespace dsn { namespace apps {
 
@@ -86,18 +87,18 @@ class read_response {
 
   read_response(const read_response&);
   read_response& operator=(const read_response&);
-  read_response() : error(0), value() {
+  read_response() : error(0) {
   }
 
   virtual ~read_response() throw();
   int32_t error;
-  std::string value;
+   ::dsn::blob value;
 
   _read_response__isset __isset;
 
   void __set_error(const int32_t val);
 
-  void __set_value(const std::string& val);
+  void __set_value(const  ::dsn::blob& val);
 
   bool operator == (const read_response & rhs) const
   {

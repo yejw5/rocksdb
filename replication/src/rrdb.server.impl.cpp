@@ -287,12 +287,19 @@ void rrdb_service_impl::on_get(const ::dsn::blob& key, ::dsn::replication::rpc_r
 
     read_response resp;
     rocksdb::Slice skey(key.data(), key.length());
-    rocksdb::Status status = _db->Get(_rd_opts, skey, &resp.value);
+    std::string value;
+    rocksdb::Status status = _db->Get(_rd_opts, skey, &value);
     if (!status.ok() && !status.IsNotFound())
     {
         derror("%s failed, status = %s", __FUNCTION__, status.ToString().c_str());
     }
     resp.error = status.code();
+    if (status.ok() && value.size() > 0)
+    {
+        std::shared_ptr<char> b(new char[value.size()], std::default_delete<char[]>());
+        memcpy(b.get(), value.data(), value.size());
+        resp.value.assign(b, 0, value.size());
+    }
     reply(resp);
 }
 

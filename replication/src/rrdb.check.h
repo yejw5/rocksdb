@@ -2,7 +2,6 @@
 # include <dsn/tool/global_checker.h>
 
 namespace dsn { namespace apps { 
- 
 class rrdb_checker 
     : public ::dsn::tools::checker
 {
