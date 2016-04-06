@@ -106,6 +106,10 @@ namespace dsn {
             // when in catch mode, increase _last_seq by one
             void catchup_one();
 
+            // update perf counter
+            void install_perf_counters();
+            void update_perf_counter();
+
         private:
             rocksdb::DB           *_db;
             rocksdb::WriteBatch   _batch;
@@ -127,6 +131,10 @@ namespace dsn {
             volatile bool                _is_checkpointing; // whether the db is doing checkpoint
             ::dsn::utils::ex_lock_nr     _checkpoints_lock; // protected the following checkpoints vector
             std::vector<checkpoint_info> _checkpoints;      // ordered checkpoints
+
+            perf_counter_                _counter_estimate_num_entries;
+            perf_counter_                _counter_disk_storage_size;
+            perf_counter_                _counter_memory_size;
         };
 
         // --------- inline implementations -----------------
