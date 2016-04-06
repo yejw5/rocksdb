@@ -10,8 +10,7 @@ set(MY_PROJ_SRC "")
 # "GLOB" for non-recursive search
 set(MY_SRC_SEARCH_MODE "GLOB")
 
-set(MY_PROJ_INC_PATH "../../include" "../ext/shmcounter/include"
-"../ext/libevent/include" "../ext/mysql-connector/include")
+set(MY_PROJ_INC_PATH "../../include" "../ext/shmcounter/include" "../ext/libevent/include" "../ext/mysql-connector/include")
 
 set(MY_PROJ_LIBS 
     dsn.replication 
@@ -32,8 +31,7 @@ else()
 	set(MY_PROJ_LIBS rocksdblib ${MY_PROJ_LIBS} rpcrt4)
 endif()
 
-set(MY_PROJ_LIB_PATH "../.." "../ext/shmcounter/lib" "../ext/libevent/lib"
-"../ext/mysql-connector/lib")
+set(MY_PROJ_LIB_PATH "../.." "../ext/shmcounter/lib" "../ext/libevent/lib" "../ext/mysql-connector/lib")
 
 set(MY_BOOST_PACKAGES system)
 
