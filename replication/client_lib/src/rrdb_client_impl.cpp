@@ -139,8 +139,8 @@ const char* rrdb_client_impl::get_error_string(int error_code) const
 {
     int len = 4 + hash_key.size() + sort_key.size();
     char* buf = new char[len];
-    // TODO(qinzuoyan): little endian
-    *(int*)buf = hash_key.size();
+    // hash_key_length is in big endian
+    *(int32_t*)buf = htobe32( (int32_t)hash_key.size() );
     hash_key.copy(buf + 4, hash_key.size(), 0);
     sort_key.copy(buf + 4 + hash_key.size(), sort_key.size(), 0);
     std::shared_ptr<char> buffer(buf);
