@@ -97,6 +97,23 @@ namespace dsn {
 
             // disable write ahead logging as replication handles logging instead now
             _wt_opts.disableWAL = true;
+
+            install_perf_counters();
+        }
+
+        void rrdb_service_impl::install_perf_counters()
+        {
+            std::stringstream ss;
+            ss << replica_name() << ".estimate_num_entries(#)";
+            _counter_estimate_num_entries.init("eon.app", ss.str().c_str(), COUNTER_TYPE_NUMBER, "estimate number of entries");
+
+            ss.str("");
+            ss << replica_name() << ".disk.storage(MB)";
+            _counter_disk_storage_size.init("eon.app", ss.str().c_str(), COUNTER_TYPE_NUMBER, "disk storage");
+
+            ss.str("");
+            ss << replica_name() << ".memory.size(MB)";
+            _counter_memory_size.init("eon.app", ss.str().c_str(), COUNTER_TYPE_NUMBER, "memory size");
         }
 
         rrdb_service_impl::checkpoint_info rrdb_service_impl::parse_checkpoints()
@@ -603,6 +620,8 @@ namespace dsn {
             gc_checkpoints();
 
             _is_checkpointing = false;
+            update_perf_counter();
+
             return ERR_OK;
         }
         
@@ -769,6 +788,28 @@ namespace dsn {
                    data_dir().c_str(),
                    last_committed_decree());
             return ERR_OK;
+        }
+
+        void rrdb_service_impl::update_perf_counter()
+        {
+            uint64_t value;
+            bool ret = _db->GetIntProperty("rocksdb.estimate-num-keys", &value);
+            if(ret)
+            {
+                _counter_estimate_num_entries.set(value);
+            }
+
+            ret = _db->GetIntProperty("rocksdb.estimate-live-data-size", &value);
+            if(ret)
+            {
+                _counter_disk_storage_size.set(value / 1000000);
+            }
+
+            ret = _db->GetIntProperty("rocksdb.size-all-mem-tables", &value);
+            if(ret)
+            {
+                _counter_memory_size.set(value / 1000000);
+            }
         }
     }
 }
