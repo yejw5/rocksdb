@@ -31,10 +31,10 @@ info_collector::info_collector()
         _meta_leaders.push_back(target);
     }
 
-    _mysql_host = dsn_config_get_value_string("info_collector", "host", "", "mysql host");
-    _mysql_user = dsn_config_get_value_string("info_collector", "user", "", "mysql user");
-    _mysql_passwd = dsn_config_get_value_string("info_collector", "passwd", "", "mysql password");
-    _mysql_database = dsn_config_get_value_string("info_collector", "database", "", "mysql database");
+    _mysql_host = dsn_config_get_value_string("pegasus.collector", "host", "", "mysql host");
+    _mysql_user = dsn_config_get_value_string("pegasus.collector", "user", "", "mysql user");
+    _mysql_passwd = dsn_config_get_value_string("pegasus.collector", "passwd", "", "mysql password");
+    _mysql_database = dsn_config_get_value_string("pegasus.collector", "database", "", "mysql database");
 
     // initialize mysql server connection
     _driver = get_driver_instance();

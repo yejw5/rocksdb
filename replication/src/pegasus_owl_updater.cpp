@@ -48,14 +48,16 @@ pegasus_owl_updater::pegasus_owl_updater()
     dassert(_meta.cluster.size() > 0, "");
     //_meta.host = dsn_config_get_value_string("pegasus.owl", "info_host", "", "meta_host");
     //dassert(_meta.host.size() > 0, "");
-    _meta.job = dsn_config_get_value_string("pegasus.owl", "info_job", "", "meta_job");
-    dassert(_meta.job.size() > 0, "");
+    // _meta.job = dsn_config_get_value_string("pegasus.owl", "info_job", "", "meta_job");
+
     //_meta.port = dsn_config_get_value_uint64("pegasus.owl", "info_port", 0, "meta_port");
 
     dsn_app_info info;
     dsn_get_current_app_info(&info);
-    _meta.service = info.name;
-    //_meta.service = dsn_config_get_value_string("pegasus.owl", "info_service", "", "meta_service");
+    _meta.job = info.name;
+    dassert(_meta.job.size() > 0, "");
+
+    _meta.service = dsn_config_get_value_string("pegasus.owl", "info_service", "", "meta_service");
     dassert(_meta.service.size() > 0, "");
     _meta.version = dsn_config_get_value_string("pegasus.owl", "info_version", "", "meta_version");
     dassert(_meta.version.size() > 0, "");
