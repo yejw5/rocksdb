@@ -3,8 +3,6 @@
 #include "rrdb_error.h"
 #include "rrdb_client_impl.h"
 
-extern void dsn_core_init();
-
 namespace dsn{ namespace apps{
 
 class rrdb_client_factory_impl{

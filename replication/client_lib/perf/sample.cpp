@@ -212,29 +212,29 @@ void do_main(irrdb_client* client,
             do {
                 ret = client->set(hash_key, sort_key, value);
                 //cout << "sss:" << ret << endl;
-            } while(configPam.type == "pressure" && ret == dsn::apps::ERROR_TIMEOUT);
+            } while(configPam.type == "pressure" && ret == dsn::apps::RRDB_ERR_TIMEOUT);
         }
         else if (type == "del") {
             do {
                 ret = client->del(hash_key, sort_key);
-            } while(configPam.type == "pressure" && ret == dsn::apps::ERROR_TIMEOUT);
+            } while(configPam.type == "pressure" && ret == dsn::apps::RRDB_ERR_TIMEOUT);
         }
         else if (type == "check_set" || type == "get") {
             value=generateValue(sort_key, configPam.valueSize);
             if(type == "check_set") {
                 do {
                      ret = client->get(hash_key, sort_key, value_get);
-                } while(ret == dsn::apps::ERROR_TIMEOUT);
+                } while(ret == dsn::apps::RRDB_ERR_TIMEOUT);
             } else {
                 do {
                     ret = client->get(hash_key, sort_key, value_get);
-                } while(configPam.type == "pressure" && ret == dsn::apps::ERROR_TIMEOUT);
+                } while(configPam.type == "pressure" && ret == dsn::apps::RRDB_ERR_TIMEOUT);
             }
         }
         else if (type == "check_del") {
             do {
                  ret = client->get(hash_key, sort_key, value_get);
-            } while(ret == dsn::apps::ERROR_TIMEOUT);
+            } while(ret == dsn::apps::RRDB_ERR_TIMEOUT);
         }
         gettimeofday(&end, NULL);
         timersub(&end, &start, &result_time);
@@ -484,7 +484,7 @@ void test_performance(struct configParam& configPam,
         std::cout<<std::endl<<"[test_del] start"<<std::endl;
         test_multi_model(configPam, "test_del", result , lock, 0, process_name);
         std::cout<<std::endl<<"[test_check_del] start"<<std::endl;
-        test_single_model(configPam, "test_check_del", result , lock, dsn::apps::ERROR_NOT_FOUND, process_name);
+        test_single_model(configPam, "test_check_del", result , lock, dsn::apps::RRDB_ERR_NOT_FOUND, process_name);
         std::cout<<std::endl;
         write_result(result, configPam, out, out_detail);
         configPam.qps += configPam.incre_qps;

@@ -25,11 +25,11 @@ project(rocksdb)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/thirdparty.inc)
 
-execute_process(COMMAND $ENV{COMSPEC} " /C date /T" OUTPUT_VARIABLE DATE)
-execute_process(COMMAND $ENV{COMSPEC} " /C time /T" OUTPUT_VARIABLE TIME)
-string(REGEX REPLACE "(..)/(..)/..(..).*" "\\1/\\2/\\3" DATE ${DATE})
-string(REGEX REPLACE "(..):(.....).*" " \\1:\\2" TIME ${TIME})
-string(CONCAT GIT_DATE_TIME ${DATE} ${TIME})
+execute_process(COMMAND $ENV{COMSPEC} /C echo %date:~0,10% OUTPUT_VARIABLE DATE)
+execute_process(COMMAND $ENV{COMSPEC} /C echo %time% OUTPUT_VARIABLE TIME)
+string(REGEX REPLACE "(..)/(..)/(..).*" "\\1/\\2/\\3" DATE ${DATE})
+string(REGEX REPLACE "(..):(..):(..).*" "\\1:\\2:\\3" TIME ${TIME})
+string(CONCAT GIT_DATE_TIME "${DATE} ${TIME}")
 
 execute_process(COMMAND $ENV{COMSPEC} " /C git rev-parse HEAD 2>nil" OUTPUT_VARIABLE GIT_SHA)
 string(REGEX REPLACE "[^0-9a-f]+" "" GIT_SHA ${GIT_SHA})
