@@ -23,3 +23,20 @@ rely on the details of any other header files in this package.  Those
 internal APIs may be changed without warning.
 
 Design discussions are conducted in https://www.facebook.com/groups/rocksdb.dev/
+
+
+INSTALL ON WINDOWS
+==================
+Suppose that:
+- use visual studio 2015
+- put rDSN and rocksdb in `D:\work`
+- have installed rDSN
+- have write access to `C:\Windows\Temp`
+
+Run cmake to generate visual studio project files:
+> cd D:\work\rocksdb
+> mkdir builder
+> cd builder
+> D:\work\rDSN\ext\cmake-3.2.2\bin\cmake .. -G "Visual Studio 14 2015 Win64" -DBOOST_INCLUDEDIR="D:\work\rDSN\ext\boost_1_59_0" -DBOOST_LIBRARYDIR="D:\work\rDSN\ext\boost_1_59_0\lib64-msvc-14.0"
+
+Open `D:\work\rocksdb\builder\rocksdb.sln` in visual studio 2015 and build it.
