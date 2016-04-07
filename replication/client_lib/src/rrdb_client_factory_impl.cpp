@@ -7,7 +7,6 @@ dsn::service::zlock* rrdb_client_factory_impl::_map_lock;
 
 bool rrdb_client_factory_impl::initialize(const char* config_file)
 {
-    dsn_core_init();
     //use config file to run
     char exe[] = "client";
     char config[50];
