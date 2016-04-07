@@ -64,8 +64,6 @@ pegasus_owl_updater::pegasus_owl_updater()
 
     //char temp[20];
     //sprintf(temp, "%s:%d", _meta.host.c_str(), _meta.port);
-    rpc_address addr(dsn_primary_address());
-    _task.assign(addr.to_std_string());
 
     std::unordered_map<std::string, std::string> map;
     map.insert(std::pair<std::string, std::string>("key", "cluster"));
@@ -78,10 +76,12 @@ pegasus_owl_updater::pegasus_owl_updater()
     _dimensions.push_back(map);
     _dimensions_with_replica.push_back(map);
 
+    /*
     map.clear();
     map.insert(std::pair<std::string, std::string>("key", "task"));
     map.insert(std::pair<std::string, std::string>("value", _task));
     _dimensions_with_replica.push_back(map);
+    */
 
 
     // init http
@@ -152,6 +152,7 @@ void pegasus_owl_updater::update()
     dinfo("start owl update");
     if(_flag.test_and_set())
         return;
+
     perf_counter_map tmp_map;
     {
         utils::auto_read_lock l(_lock);
@@ -167,6 +168,16 @@ void pegasus_owl_updater::update()
         _flag.clear();
         return;
     }
+
+
+    rpc_address addr((dsn_address_t)dsn_primary_address());
+    std::cout << addr.to_std_string() << std::endl;
+    _task.assign(addr.to_std_string());
+   _dimensions_with_replica = _dimensions;\
+   std::unordered_map<std::string, std::string> map;
+   map.insert(std::pair<std::string, std::string>("key", "task"));
+   map.insert(std::pair<std::string, std::string>("value", _task));
+   _dimensions_with_replica.push_back(map);
 
     owl_report_info info;
     info.meta = _meta;
