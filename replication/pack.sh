@@ -45,7 +45,7 @@ mkdir "$pack_folder"
 mkdir "$pack_folder""/bin"
 cp builder/bin/rrdb/rrdb "$pack_folder""/bin"
 cp client_lib/sample/rrdb_sample "$pack_folder""/bin"
-cp ../../rDSN/builder/bin/dsn.ddlclient/dsn.ddlclient "$pack_folder""/bin"
+cp ../../rDSN/builder/bin/dsn.tools.ddlclient/dsn.tools.ddlclient "$pack_folder""/bin"
 cp ../rrdb_bench "$pack_folder""/bin"
 
 # copy tool chain
@@ -68,6 +68,12 @@ cp "../../rDSN/install/lib/libdsn.core.so" "$pack_folder""/core"
 # copy shm counter binary
 mkdir "$pack_folder""/shmcounter"
 cp -r ext/shmcounter/bin/* "$pack_folder""/shmcounter"
+
+# copy libevent binary
+cp ext/libevent/lib/libevent-2.0.so** "$pack_folder""/core"
+
+# copy mysql connector binary
+cp ext/mysql-connector/lib/libmysqlcppconn.so* "$pack_folder""/core"
 
 pack_file="pegasus-""$version"".tar.gz"
 
