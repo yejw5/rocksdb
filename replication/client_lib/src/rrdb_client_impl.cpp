@@ -46,7 +46,7 @@ int rrdb_client_impl::set(
 {
     // check params
     if(hash_key.empty())
-        return ERROR_INVALID_HASH_KEY;
+        return RRDB_ERR_INVALID_HASH_KEY;
 
     update_request req;
     generate_key(req.key, hash_key, sort_key);
@@ -65,7 +65,7 @@ int rrdb_client_impl::get(
 {
     // check params
     if(hash_key.empty())
-        return ERROR_INVALID_HASH_KEY;
+        return RRDB_ERR_INVALID_HASH_KEY;
 
     dsn::blob req;
     generate_key(req, hash_key, sort_key);
@@ -83,7 +83,7 @@ int rrdb_client_impl::del(
 {
     // check params
     if(hash_key.empty())
-        return ERROR_INVALID_HASH_KEY;
+        return RRDB_ERR_INVALID_HASH_KEY;
 
     dsn::blob req;
     generate_key(req, hash_key, sort_key);
@@ -101,18 +101,18 @@ const char* rrdb_client_impl::get_error_string(int error_code) const
 /*static*/ void rrdb_client_impl::init_error()
 {
     _client_error_to_string.clear();
-    #define ERROR_CODE(x, y, z) _client_error_to_string[y] = z
+    #define RRDB_ERR_CODE(x, y, z) _client_error_to_string[y] = z
     #include "rrdb_error_def.h"
-    #undef ERROR_CODE
+    #undef RRDB_ERR_CODE
 
     _server_error_to_client.clear();
-    _server_error_to_client[dsn::ERR_OK] = ERROR_OK;
-    _server_error_to_client[dsn::ERR_TIMEOUT] = ERROR_TIMEOUT;
-    _server_error_to_client[dsn::ERR_FILE_OPERATION_FAILED] = ERROR_SERVER_INTERNAL_ERROR;
-    _server_error_to_client[dsn::ERR_OBJECT_NOT_FOUND] = ERROR_OBJECT_NOT_FOUND;
+    _server_error_to_client[dsn::ERR_OK] = RRDB_ERR_OK;
+    _server_error_to_client[dsn::ERR_TIMEOUT] = RRDB_ERR_TIMEOUT;
+    _server_error_to_client[dsn::ERR_FILE_OPERATION_FAILED] = RRDB_ERR_SERVER_INTERNAL_ERROR;
+    _server_error_to_client[dsn::ERR_OBJECT_NOT_FOUND] = RRDB_ERR_OBJECT_NOT_FOUND;
 
-    _server_error_to_client[dsn::replication::ERR_APP_NOT_EXIST] = ERROR_APP_NOT_EXIST;
-    _server_error_to_client[dsn::replication::ERR_APP_EXIST] = ERROR_APP_EXIST;
+    _server_error_to_client[dsn::replication::ERR_APP_NOT_EXIST] = RRDB_ERR_APP_NOT_EXIST;
+    _server_error_to_client[dsn::replication::ERR_APP_EXIST] = RRDB_ERR_APP_EXIST;
 
     // rocksdb error;
     for(int i = 1001; i < 1013; i++)
@@ -127,7 +127,7 @@ const char* rrdb_client_impl::get_error_string(int error_code) const
     if(it != _server_error_to_client.end())
         return it->second;
     derror("can't find corresponding client error definition, server error:[%d:%s]", server_error, dsn::error_code(server_error).to_string());
-    return ERROR_UNKNOWN;
+    return RRDB_ERR_UNKNOWN;
 }
 
 /*static*/ int rrdb_client_impl::get_rocksdb_server_error(int rocskdb_error)

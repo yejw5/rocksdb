@@ -2,8 +2,8 @@
 
 namespace dsn{ namespace apps {
 
-#define ERROR_CODE(x, y, z) static const int x = y
+#define RRDB_ERR_CODE(x, y, z) static const int x = y
 #include "rrdb_error_def.h"
-#undef ERROR_CODE
+#undef RRDB_ERR_CODE
 
 }} //namespace

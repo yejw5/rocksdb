@@ -308,8 +308,8 @@ void get_op(int Argc, std::string Argv[], irrdb_client* client)
     std::string sort_key = Argv[2];
     std::string value;
     int ret = client->get(hash_key, sort_key, value);
-    if (ret != ERROR_OK) {
-        if (ret == ERROR_NOT_FOUND) {
+    if (ret != RRDB_ERR_OK) {
+        if (ret == RRDB_ERR_NOT_FOUND) {
             fprintf(stderr, "Not found\n");
         }
         else {
@@ -333,7 +333,7 @@ void set_op(int Argc, std::string Argv[], irrdb_client* client)
     std::string sort_key = Argv[2];
     std::string value = Argv[3];
     int ret = client->set(hash_key, sort_key, value);
-    if (ret != ERROR_OK) {
+    if (ret != RRDB_ERR_OK) {
         fprintf(stderr, "ERROR: %s\n", client->get_error_string(ret));
     }
     else {
@@ -352,7 +352,7 @@ void del_op(int Argc, std::string Argv[], irrdb_client* client)
     std::string hash_key = Argv[1];
     std::string sort_key = Argv[2];
     int ret = client->del(hash_key, sort_key);
-    if (ret != ERROR_OK) {
+    if (ret != RRDB_ERR_OK) {
         fprintf(stderr, "ERROR: %s\n", client->get_error_string(ret));
     }
     else {

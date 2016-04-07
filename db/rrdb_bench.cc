@@ -2811,7 +2811,7 @@ class Benchmark {
                             FLAGS_rrdb_timeout_ms);
       thread->stats.FinishedOps(nullptr, nullptr, 1);
       bytes += value_size_ + key_size_;
-      if (ret != ::dsn::apps::ERROR_OK) {
+      if (ret != ::dsn::apps::RRDB_ERR_OK) {
         fprintf(stderr, "put error: %s\n", client->get_error_string(ret));
         exit(1);
       }
@@ -3006,10 +3006,10 @@ class Benchmark {
       read++;
       std::string value;
       int ret = client->get(key.ToString(), "", value, FLAGS_rrdb_timeout_ms);
-      if (ret == ::dsn::apps::ERROR_OK) {
+      if (ret == ::dsn::apps::RRDB_ERR_OK) {
         found++;
         bytes += key.size() + value.size();
-      } else if (ret != ::dsn::apps::ERROR_NOT_FOUND) {
+      } else if (ret != ::dsn::apps::RRDB_ERR_NOT_FOUND) {
         fprintf(stderr, "Get returned an error: %s\n", client->get_error_string(ret));
         exit(1);
       }
@@ -3229,7 +3229,7 @@ class Benchmark {
       GenerateKeyFromInt(k, FLAGS_num, &key);
       int ret = client->del(key.ToString(), "", FLAGS_rrdb_timeout_ms);
       thread->stats.FinishedOps(nullptr, nullptr, 1);
-      if (ret != ::dsn::apps::ERROR_OK) {
+      if (ret != ::dsn::apps::RRDB_ERR_OK) {
         fprintf(stderr, "del error: %s\n", client->get_error_string(ret));
         exit(1);
       }
