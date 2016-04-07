@@ -72,6 +72,7 @@ private:
     owl_meta_info _meta;
     std::string _task;
     std::vector<std::unordered_map<std::string, std::string>> _dimensions;
+    std::vector<std::unordered_map<std::string, std::string>> _dimensions_with_replica;
 
     std::atomic_flag _flag;
     struct event_base* _event_base;

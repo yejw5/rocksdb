@@ -68,17 +68,21 @@ pegasus_owl_updater::pegasus_owl_updater()
     _task.assign(addr.to_std_string());
 
     std::unordered_map<std::string, std::string> map;
-    //map.insert(std::pair<std::string, std::string>("key", "task"));
-    //map.insert(std::pair<std::string, std::string>("value", _task));
-    //_dimensions.push_back(map);
-    //map.clear();
     map.insert(std::pair<std::string, std::string>("key", "cluster"));
     map.insert(std::pair<std::string, std::string>("value", _meta.cluster));
     _dimensions.push_back(map);
+    _dimensions_with_replica.push_back(map);
     map.clear();
     map.insert(std::pair<std::string, std::string>("key", "job"));
     map.insert(std::pair<std::string, std::string>("value", _meta.job));
     _dimensions.push_back(map);
+    _dimensions_with_replica.push_back(map);
+
+    map.clear();
+    map.insert(std::pair<std::string, std::string>("key", "task"));
+    map.insert(std::pair<std::string, std::string>("value", _task));
+    _dimensions_with_replica.push_back(map);
+
 
     // init http
     _event_base = event_base_new();
@@ -169,7 +173,6 @@ void pegasus_owl_updater::update()
     for(const std::pair<perf_counter*, dsn_perf_counter_type_t>& kvp : tmp_map)
     {
         owl_metric m;
-        m.dimensions = _dimensions;
         m.name.assign(kvp.first->full_name());
         m._namespace = kvp.first->app();
         m.timestamp = dsn_now_ns() / 1000000000;
@@ -178,22 +181,30 @@ void pegasus_owl_updater::update()
         case COUNTER_TYPE_NUMBER:
             m.unit = "Count";
             m.value = kvp.first->get_integer_value();
+            m.dimensions = _dimensions;
+            info.metrics.push_back(m);
+            m.dimensions = _dimensions_with_replica;
             info.metrics.push_back(m);
             break;
         case COUNTER_TYPE_RATE:
             m.unit = "CountPerSecond";
             m.value = kvp.first->get_integer_value();
+            m.dimensions = _dimensions;
+            info.metrics.push_back(m);
+            m.dimensions = _dimensions_with_replica;
             info.metrics.push_back(m);
             break;
         case COUNTER_TYPE_NUMBER_PERCENTILES:
             m.unit = "Percent";
             m.value = (uint64_t)kvp.first->get_percentile(COUNTER_PERCENTILE_99);
+            m.dimensions = _dimensions;
+            info.metrics.push_back(m);
+            m.dimensions = _dimensions_with_replica;
             info.metrics.push_back(m);
             break;
         default:
             break;
         }
-
         kvp.first->release_ref();
     }
     std::stringstream ss;

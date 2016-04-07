@@ -13,5 +13,4 @@ dsn_common_setup()
 
 add_subdirectory(src)
 add_subdirectory(client_lib)
-add_subdirectory(collector)
 
