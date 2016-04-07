@@ -4,6 +4,7 @@
 #    CLEAR          YES|NO
 #    PART_CLEAR     YES|NO
 #    BUILD_TYPE     debug|release
+#    SERIALIZE_TYPE dsn|thrift|protobuf
 #    RUN_VERBOSE    YES|NO
 #    WARNING_ALL    YES|NO
 #    ENABLE_GCOV    YES|NO
@@ -43,6 +44,12 @@ then
     CMAKE_OPTIONS="$CMAKE_OPTIONS -DCMAKE_BUILD_TYPE=Debug"
 else
     echo "BUILD_TYPE=release"
+fi
+
+echo "SERIALIZE_TYPE=$SERIALIZE_TYPE"
+if [ -n "$SERIALIZE_TYPE" ]
+then
+    CMAKE_OPTIONS="$CMAKE_OPTIONS -DDSN_SERIALIZATION_TYPE=$SERIALIZE_TYPE"
 fi
 
 if [ "$RUN_VERBOSE" == "YES" ]
