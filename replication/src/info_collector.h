@@ -31,7 +31,19 @@ private:
     void on_update_meta(dsn::rpc_address all, dsn::rpc_address addr, dsn::error_code error, configuration_list_apps_response resp);
     //dsn::error_code update_app_info(app_info);
 
-    void end_meta_request(task_ptr callback, int retry_times, error_code err, dsn_message_t request, dsn_message_t resp);
+    sql::ResultSet* selectApp(std::stringstream &ss);
+    void updateApp(std::stringstream &ss);
+    void exeTransaction(std::stringstream &ss);
+    void getHostName(char hn[], const dsn::rpc_address& addr, int len = 100);
+    void delUndesiredInPartitionByAppId(int32_t app_id);
+    bool updatePegasusToTask(configuration_query_by_index_response &resp, const dsn::replication::partition_configuration &p, int cluster_id);
+
+    void update_apps();
+    void on_update_apps(dsn::error_code error, configuration_list_apps_response resp);
+
+    void on_update_partitions(dsn::rpc_address addr, dsn::error_code error, configuration_query_by_index_response resp);
+
+    void end_meta_request(task_ptr callback, int retry_times, error_code err, dsn_message_t request, dsn_message_t resp, bool is_retry);
 
     template<typename TRequest, typename TCallback>
     //where TCallback = void(error_code, TResponse&&)
@@ -41,6 +53,7 @@ private:
             dsn_task_code_t code,
             TRequest&& req,
             TCallback&& callback,
+            bool is_retry = true,
             int timeout_milliseconds= 0,
             int reply_hash = 0
             )
@@ -52,9 +65,9 @@ private:
             target,
             msg,
             this,
-            [this, task] (error_code err, dsn_message_t request, dsn_message_t response)
+            [this, task, is_retry] (error_code err, dsn_message_t request, dsn_message_t response)
             {
-                end_meta_request(std::move(task), 0, err, request, response);
+                end_meta_request(std::move(task), 0, err, request, response, is_retry);
             },
             0
          );
@@ -73,6 +86,8 @@ private:
     std::string _mysql_user;
     std::string _mysql_passwd;
     std::string _mysql_database;
+
+    std::string _cluster_name;
 
     dsn::service::zlock _lock;
     sql::Driver *_driver;
