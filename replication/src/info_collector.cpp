@@ -114,7 +114,7 @@ void info_collector::updateApp(std::stringstream &ss)
 void info_collector::exeTransaction(std::stringstream &ss)
 {
     try {
-        std::cout << "in transaction: "<< ss.str() << std::endl;
+        std::cout << ss.str() << std::endl;
         sql::Statement* stmt = _con->createStatement();
         stmt -> execute ("START TRANSACTION;");
         stmt->executeUpdate(ss.str().c_str());
@@ -188,7 +188,7 @@ void info_collector::update_apps()
 void info_collector::delUndesiredInPartitionByAppId(int32_t app_id)
 {
     std::stringstream ss;
-    ss << "DELETE FROM monitor_pegasus_partition_to_task WHERE partition_id IN (SELECT id FROM monitor_pegasus_partition WHERE app_id=" << app_id << ");";
+    ss << "DELETE FROM monitor_pegasus_partition_to_task WHERE partition_id EXISTS (SELECT id FROM monitor_pegasus_partition WHERE app_id=" << app_id << ");";
     ss << "DELETE FROM monitor_pegasus_partition WHERE app_id=" << app_id << ";";
     exeTransaction(ss);
 }
@@ -397,6 +397,42 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
     }
 
     std::stringstream ss_for_partitionToTask;
+//    std::stringstream ss_for_partitionToTask2;
+//    ss_for_partitionToTask2 << "SELECT type, partition_id, task_id FROM monitor_pegasus_partition_to_task WHERE partition_id=" << partition_id << ";";
+//    res = selectApp(ss_for_partitionToTask2);
+//    while( res->next() )
+//    {
+//        for ( int index = 0; index < hostnameVector.size(); ++index )
+//        {
+//            int type = index ? PS_SECONDARY : PS_PRIMARY;
+//            std::stringstream ss_for_taskid;
+//            ss_for_taskid << "SELECT id FROM monitor_task WHERE host='" << hostnameVector[index] << "' AND port=" << portVector[index]
+//                          << " AND job_id=2;";
+//            res = selectApp(ss_for_taskid);
+//            if ( !res->next() )
+//            {
+//                derror("No next value in \"SELECT id FROM monitor_task ***\"");
+//                delete res;
+//                return false;
+//            }
+//            else
+//            {
+//                task_id = res->getInt(1);
+//                delete res;
+//            }
+
+
+//        }
+//    }
+    ss_for_partitionToTask << "DELETE FROM monitor_pegasus_partition_to_task where partition_id=" << partition_id << " AND task_id NOT IN ("
+                           << "SELECT id FROM monitor_task WHERE ";
+    for ( int index = 0; index < hostnameVector.size(); ++index )
+    {
+        if ( index )
+            ss_for_partitionToTask << " OR ";
+        ss_for_partitionToTask << "(host='" << hostnameVector[index] << "' AND port=" << portVector[index] << " AND job_id=2)";
+    }
+    ss_for_partitionToTask << ");";
     for ( int index = 0; index < hostnameVector.size(); ++index )
     {
         int type = index ? PS_SECONDARY : PS_PRIMARY;
@@ -444,138 +480,6 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
     exeTransaction(ss_for_partitionToTask);
     return true;
 }
-
-
-/*
-//success:true, else:false
-bool info_collector::updatePegasusToTask(configuration_query_by_index_response &resp, const dsn::replication::partition_configuration &p, int cluster_id)
-{
-    sql::ResultSet *res;
-    int task_id;
-    int partition_id;
-    std::vector<std::string> hostname;
-
-    //get the partition id in app 'monitor_pegasus_partition'
-    std::stringstream ss_partition_id;
-    ss_partition_id << "SELECT id FROM monitor_pegasus_partition WHERE app_id=" << resp.app_id << " AND cluster_id=" << cluster_id
-                    << " AND partition_index=" << p.gpid.pidx << ";";
-    res = selectApp(ss_partition_id);
-    if ( !res->next() )
-    {
-        derror("No next value in \"SELECT id FROM monitor_pegasus_partition ***\"");
-        delete res;
-        return false;
-    }
-    else
-    {
-        partition_id = res->getInt(1);
-        delete res;
-    }
-
-    //get the hostname of primary
-    char hostname_primary[100];
-    getHostName(hostname_primary, p.primary);
-    //get the task id in app 'monitor_task'
-    std::stringstream ss_for_taskid;
-    ss_for_taskid << "SELECT id FROM monitor_task WHERE host='" << hostname_primary << "' AND port=" << p.primary.port()
-                  << " AND job_id=2;";
-    res = selectApp(ss_for_taskid);
-    if ( !res->next() )
-    {
-        derror("No next value in \"SELECT id FROM monitor_task ***\"");
-        delete res;
-        return false;
-    }
-    else
-    {
-        task_id = res->getInt(1);
-        delete res;
-    }
-
-
-    //judge if there exists an item than type = PS_PRIMARY AND partition_id='partition_id' AND task_id='task_id'
-    std::stringstream ss_count;
-    ss_count << "SELECT COUNT(*) FROM monitor_pegasus_partition_to_task WHERE type=" << dsn::replication::PS_PRIMARY << " AND partition_id="
-             << partition_id << " AND task_id=" << task_id << ";";
-    res = selectApp(ss_count);
-    bool isExist;
-    if ( !res->next() )
-    {
-        derror("No next value in \"SELECT id FROM monitor_task ***\"");
-        delete res;
-        return false;
-    }
-    else
-    {
-        isExist = res->getInt(1) > 0 ? true : false;
-        delete res;
-    }
-
-    //delUndesiredInPartitionToTask(resp, , );
-    //update partition_to_task where type = PS_PRIMARY
-    std::stringstream ss_for_partitionToTask;
-    if ( !isExist )
-        ss_for_partitionToTask << "INSERT INTO monitor_pegasus_partition_to_task(type, partition_id, task_id) values("
-                               << PS_PRIMARY << ", " << partition_id << ", " << task_id << ");";
-    else
-        ss_for_partitionToTask << "UPDATE monitor_pegasus_partition_to_task SET type=" << PS_PRIMARY << " WHERE partition_id=" << partition_id
-                               << " AND task_id=" << task_id << ";";
-    updateApp(ss_for_partitionToTask);
-
-    //update monitor_pegasus_partition_to_task where type = PS_SECONDARY
-    for ( int index = 0; index < p.secondaries.size(); ++index )
-    {
-        //get the hostname of secondaries[index]
-        char hostname_secondaries[100];
-        getHostName(hostname_secondaries, p.secondaries[index]);
-
-        //judge if there has been an item that host='hostname_secondaries' AND port=p.secondaries[index].port() AND job_id=2;
-        std::stringstream ss_for_taskid_secondary;
-        ss_for_taskid_secondary << "SELECT id FROM monitor_task WHERE host='" << hostname_secondaries << "' AND port=" << p.secondaries[index].port()
-                      << " AND job_id=2;";
-        res = selectApp(ss_for_taskid_secondary);
-        if ( !res->next() )
-        {
-            derror("No next value in \"SELECT id FROM monitor_task ***\"");
-            delete res;
-            return false;
-        }
-        else
-        {
-            task_id = res->getInt(1);
-            delete res;
-        }
-
-        std::stringstream ss_count_secondaries;
-        ss_count_secondaries << "SELECT COUNT(*) FROM monitor_pegasus_partition_to_task WHERE type=" << dsn::replication::PS_SECONDARY
-                             << " AND partition_id=" << partition_id << " AND task_id=" << task_id << ";";
-        res = selectApp(ss_count_secondaries);
-        bool isExist_secondary;
-        if ( !res->next() )
-        {
-            derror("No next value in \"SELECT id FROM monitor_task ***\"");
-            delete res;
-            return false;
-        }
-        else
-        {
-            isExist_secondary = res->getInt(1) > 0 ? true : false;
-            delete res;
-        }
-
-        //update monitor_pegasus_partition_to_task secondaries[index]
-        std::stringstream ss_for_partitionToTask_secondary;
-        if ( !isExist_secondary )
-            ss_for_partitionToTask_secondary << "INSERT INTO monitor_pegasus_partition_to_task(type, partition_id, task_id) values("
-                                   << PS_SECONDARY << ", " << partition_id << ", " << task_id << ");";
-        else
-            ss_for_partitionToTask_secondary << "UPDATE monitor_pegasus_partition_to_task SET type=" << PS_SECONDARY
-                                             << " WHERE partition_id=" << partition_id << " AND task_id=" << task_id << ";";
-        updateApp(ss_for_partitionToTask_secondary);
-    }
-    return true;
-}
-*/
 
 // on finish
 void info_collector::on_finish()
