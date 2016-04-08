@@ -171,7 +171,6 @@ void pegasus_owl_updater::update()
 
 
     rpc_address addr((dsn_address_t)dsn_primary_address());
-    std::cout << addr.to_std_string() << std::endl;
     _task.assign(addr.to_std_string());
    _dimensions_with_replica = _dimensions;\
    std::unordered_map<std::string, std::string> map;

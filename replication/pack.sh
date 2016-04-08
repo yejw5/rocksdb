@@ -64,6 +64,7 @@ cp builder/lib/librrdb.clientlib.so "$pack_folder""/core"
 
 # copy dsn core lib
 cp "../../rDSN/install/lib/libdsn.core.so" "$pack_folder""/core"
+cp "../../rDSN/install/lib/libthrift.so" "$pack_folder""/core"
 
 # copy shm counter binary
 mkdir "$pack_folder""/shmcounter"
