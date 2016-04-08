@@ -41,6 +41,9 @@ private:
     void update_apps();
     void on_update_apps(dsn::error_code error, configuration_list_apps_response resp);
 
+    void update_replica();
+    void on_update_replica(dsn::error_code error, configuration_list_nodes_response resp);
+
     void on_update_partitions(dsn::rpc_address addr, dsn::error_code error, configuration_query_by_index_response resp);
 
     void end_meta_request(task_ptr callback, int retry_times, error_code err, dsn_message_t request, dsn_message_t resp, bool is_retry);

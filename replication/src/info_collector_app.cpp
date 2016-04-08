@@ -24,8 +24,8 @@ dsn::error_code info_collector_app::start(int argc, char** argv)
     ::dsn::replication::replication_app_client_base::load_meta_servers(meta_servers);
 
     uint64_t interval = dsn_config_get_value_uint64("info_collector", "interval", 60, "The interval time in running");
-    //_timer = ::dsn::tasking::enqueue_timer(LPC_RRDB_COLLECTOR_TIMER, this, [this]{on_collect();}, std::chrono::seconds(interval));
-    _timer = ::dsn::tasking::enqueue_timer(LPC_RRDB_COLLECTOR_TIMER, this, [this]{on_collect();}, std::chrono::seconds(5));
+    _timer = ::dsn::tasking::enqueue_timer(LPC_RRDB_COLLECTOR_TIMER, this, [this]{on_collect();}, std::chrono::seconds(interval));
+
     return ::dsn::ERR_OK;
 }
 

@@ -47,12 +47,8 @@ info_collector::info_collector()
 
 void info_collector::on_collect()
 {
-    ////std::cout << "before test: " << _running_count << ' ' << std::endl;
     if(_flag.test_and_set())
-    {
-        //std::cout << "in on_collect(): " << _running_count << std::endl;
         return;
-    }
 
     try {
         sql::ConnectOptionsMap connection_properties;
@@ -61,14 +57,11 @@ void info_collector::on_collect()
         connection_properties["userName"] = _mysql_user;
         connection_properties["password"] = _mysql_passwd;
         connection_properties["OPT_CONNECT_TIMEOUT"] = 20;
-
-        //TODO: COMMENT
         connection_properties["CLIENT_MULTI_STATEMENTS"]=(true);
 
         _con = _driver->connect(connection_properties);
         _con->setSchema(_mysql_database);
 
-        //_con -> setAutoCommit(0);
     }
     catch (sql::SQLException &e) {
         derror("SQLException, code:%d, err:%s, state:%s", e.getErrorCode(), e.what(), e.getSQLState().c_str());
@@ -77,9 +70,8 @@ void info_collector::on_collect()
     }
 
     _running_count.fetch_add(1);
-    //std::cout << "before update_meta: " << _running_count << ' ' << std::endl;
     update_meta();
-    //std::cout << "before update_apps: " << _running_count << ' ' << std::endl;
+    update_replica();
     update_apps();
     on_finish();
 }
@@ -119,7 +111,6 @@ void info_collector::exeTransaction(std::stringstream &ss)
         stmt -> execute ("START TRANSACTION;");
         stmt->executeUpdate(ss.str().c_str());
         stmt -> execute ("COMMIT;");
-        //std::cout << "update count:" << count << std::endl;
         delete stmt;
     } catch (sql::SQLException &e) {
         derror("SQLException, code:%d, err:%s, state:%s", e.getErrorCode(), e.what(), e.getSQLState().c_str());
@@ -129,7 +120,6 @@ void info_collector::exeTransaction(std::stringstream &ss)
 void info_collector::update_meta()
 {
     _running_count.fetch_add(meta_server_vector.size());
-    //std::cout << "in update_meta: " << _running_count << ' ' << std::endl;
     for(int i = 0; i < meta_server_vector.size(); i++)
     {
         configuration_list_apps_request req;
@@ -170,6 +160,50 @@ void info_collector::on_update_meta(dsn::rpc_address all, dsn::rpc_address addr,
         ss << " WHERE host='";
         ss << hn << "' AND port=" << addr.port() << ";";
         updateApp(ss);
+        on_finish();
+    }
+}
+
+void info_collector::update_replica()
+{
+    _running_count.fetch_add(1);
+    configuration_list_nodes_request req;
+    req.status = NS_INVALID;//TODO: what is NS_INVALID
+    request_meta(_meta_servers, RPC_CM_LIST_NODES, req,
+                 std::forward<std::function<void(dsn::error_code, configuration_list_nodes_response)>>
+                 (std::bind(&info_collector::on_update_replica, this, std::placeholders::_1, std::placeholders::_2)));
+}
+
+void info_collector::on_update_replica(error_code error, configuration_list_nodes_response resp)
+{
+    if(error != dsn::ERR_OK)
+    {
+        derror("update apps fail, error = %s", dsn_error_to_string(error));
+        on_finish();
+        return;
+    }
+    else
+    {
+        dsn::service::zauto_lock l(_lock);
+        std::stringstream ss;
+        for(int i = 0; i < resp.infos.size(); i++)
+        {
+            dsn::replication::node_info info = resp.infos[i];
+            char hn[100];
+            getHostName(hn, info.address);
+            info.address.port();
+            if ( info.status == NS_ALIVE )
+            {
+                ss << "UPDATE monitor_task SET last_attempt_time=now(), last_success_time=now()";
+                ss << " WHERE host='"  << hn << "' AND port=" << info.address.port() << ";";
+            }
+            else if ( info.status == NS_UNALIVE )
+            {
+                ss << "UPDATE monitor_task SET last_attempt_time=now()";
+                ss << " WHERE host='"  << hn << "' AND port=" << info.address.port() << ";";
+            }
+        }
+        exeTransaction(ss);
         on_finish();
     }
 }
@@ -259,8 +293,6 @@ void info_collector::on_update_apps(dsn::error_code error, configuration_list_ap
             dsn::replication::app_info info = resp.infos[i];
             if ( info.status == AS_DROPPED )
             {
-                //TODO
-                //avoid delUndesiredInPartitionByAppId periodly, even it has been execute before
                 delUndesiredInPartitionByAppId(info.app_id);
                 continue;
             }
@@ -397,33 +429,7 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
     }
 
     std::stringstream ss_for_partitionToTask;
-//    std::stringstream ss_for_partitionToTask2;
-//    ss_for_partitionToTask2 << "SELECT type, partition_id, task_id FROM monitor_pegasus_partition_to_task WHERE partition_id=" << partition_id << ";";
-//    res = selectApp(ss_for_partitionToTask2);
-//    while( res->next() )
-//    {
-//        for ( int index = 0; index < hostnameVector.size(); ++index )
-//        {
-//            int type = index ? PS_SECONDARY : PS_PRIMARY;
-//            std::stringstream ss_for_taskid;
-//            ss_for_taskid << "SELECT id FROM monitor_task WHERE host='" << hostnameVector[index] << "' AND port=" << portVector[index]
-//                          << " AND job_id=2;";
-//            res = selectApp(ss_for_taskid);
-//            if ( !res->next() )
-//            {
-//                derror("No next value in \"SELECT id FROM monitor_task ***\"");
-//                delete res;
-//                return false;
-//            }
-//            else
-//            {
-//                task_id = res->getInt(1);
-//                delete res;
-//            }
 
-
-//        }
-//    }
     ss_for_partitionToTask << "DELETE FROM monitor_pegasus_partition_to_task where partition_id=" << partition_id << " AND task_id NOT IN ("
                            << "SELECT id FROM monitor_task WHERE ";
     for ( int index = 0; index < hostnameVector.size(); ++index )
