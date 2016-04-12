@@ -79,6 +79,7 @@ void info_collector::on_collect()
 sql::ResultSet* info_collector::selectApp(std::stringstream &ss)
 {
     try {
+        dsn::service::zauto_lock l(_lock);
         std::cout << ss.str() <<  std::endl;
         sql::Statement* stmt = _con->createStatement();
         sql::ResultSet *res = stmt->executeQuery(ss.str().c_str());
@@ -93,6 +94,7 @@ sql::ResultSet* info_collector::selectApp(std::stringstream &ss)
 void info_collector::updateApp(std::stringstream &ss)
 {
     try {
+        dsn::service::zauto_lock l(_lock);
         std::cout << ss.str() << std::endl;
         sql::Statement* stmt = _con->createStatement();
         int count = stmt->executeUpdate(ss.str().c_str());
@@ -106,6 +108,7 @@ void info_collector::updateApp(std::stringstream &ss)
 void info_collector::exeTransaction(std::stringstream &ss)
 {
     try {
+        dsn::service::zauto_lock l(_lock);
         std::cout << ss.str() << std::endl;
         sql::Statement* stmt = _con->createStatement();
         stmt -> execute ("START TRANSACTION;");
@@ -140,7 +143,6 @@ void info_collector::on_update_meta(dsn::rpc_address all, dsn::rpc_address addr,
         derror("update meta fail, error = %s", dsn_error_to_string(error));
         char hn[100];
         getHostName(hn, addr);
-        dsn::service::zauto_lock l(_lock);
         std::stringstream ss;
         ss << "UPDATE monitor_task SET last_attempt_time=now(), master=";
         ss << 0 << " WHERE host='" << hn << "' AND port=" << addr.port() << ";";
@@ -153,7 +155,6 @@ void info_collector::on_update_meta(dsn::rpc_address all, dsn::rpc_address addr,
         char hn[100];
         getHostName(hn, addr);
 
-        dsn::service::zauto_lock l(_lock);
         std::stringstream ss;
         ss << "UPDATE monitor_task SET last_attempt_time=now(), last_success_time=now() , master=";
         ss << dsn_group_is_leader(all.group_handle(), addr.c_addr())?"1":"0";
@@ -184,7 +185,6 @@ void info_collector::on_update_replica(error_code error, configuration_list_node
     }
     else
     {
-        dsn::service::zauto_lock l(_lock);
         std::stringstream ss;
         for(int i = 0; i < resp.infos.size(); i++)
         {
@@ -211,7 +211,6 @@ void info_collector::on_update_replica(error_code error, configuration_list_node
 void info_collector::update_apps()
 {
     _running_count.fetch_add(1);
-    //std::cout << "in update_apps: " << _running_count << ' ' << std::endl;
     configuration_list_apps_request req;
     req.status = AS_INVALID;
     request_meta(_meta_servers, RPC_CM_LIST_APPS, req,
@@ -239,14 +238,13 @@ void info_collector::on_update_apps(dsn::error_code error, configuration_list_ap
     {
         int cluster_id;
         sql::ResultSet *res;
-        dsn::service::zauto_lock l(_lock);
         std::stringstream ss;
         ss << "SELECT id from monitor_cluster where name = '";
         ss << _cluster_name << "';";
         res = selectApp(ss);
         if ( !res->next() )
         {
-            derror("No next value in \"SELECT id from monitor_cluster ***\"");
+            derror("No next value in \"%s\"", ss.str().c_str());
             delete res;
             on_finish();
             return;
@@ -266,7 +264,7 @@ void info_collector::on_update_apps(dsn::error_code error, configuration_list_ap
             bool isExist;
             if ( !res->next() )
             {
-                derror("No next value");
+                derror("No next value in \"%s\"", ss1.str().c_str());
                 on_finish();
                 delete res;
                 return;
@@ -318,15 +316,13 @@ void info_collector::on_update_partitions(dsn::rpc_address addr, dsn::error_code
     }
     else
     {
-        dsn::service::zauto_lock l(_lock);
         int cluster_id;
         std::stringstream ss;
         ss << "SELECT cluster_id from monitor_pegasus_app where app_id = " << resp.app_id << ";";
-
         sql::ResultSet *res = selectApp(ss);
         if ( !res->next() )
         {
-            derror("No next value");
+            derror("No next value in \"%s\"", ss.str().c_str());
             delete res;
             on_finish();
             return;
@@ -348,7 +344,7 @@ void info_collector::on_update_partitions(dsn::rpc_address addr, dsn::error_code
             res = selectApp(ss1);
             if ( !res->next() )
             {
-                derror("No next value");
+                derror("No next value in \"%s\"", ss1.str().c_str());
                 delete res;
                 on_finish();
                 return;
@@ -405,7 +401,7 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
     res = selectApp(ss_partition_id);
     if ( !res->next() )
     {
-        derror("No next value in \"SELECT id FROM monitor_pegasus_partition ***\"");
+        derror("No next value in \"%s\"", ss_partition_id.str().c_str());
         delete res;
         return false;
     }
@@ -448,7 +444,7 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
         res = selectApp(ss_for_taskid);
         if ( !res->next() )
         {
-            derror("No next value in \"SELECT id FROM monitor_task ***\"");
+            derror("No next value in \"%s\"", ss_for_taskid.str().c_str());
             delete res;
             return false;
         }
@@ -466,7 +462,7 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
         bool isExist;
         if ( !res->next() )
         {
-            derror("No next value in \"SELECT id FROM monitor_task ***\"");
+            derror("No next value in \"%s\"", ss_count.str().c_str());
             delete res;
             return false;
         }
@@ -491,7 +487,6 @@ bool info_collector::updatePegasusToTask(configuration_query_by_index_response &
 void info_collector::on_finish()
 {
     int count = _running_count.fetch_sub(1);
-    //std::cout << "count: " << count  << ";  _running_count: " << _running_count << std::endl;
     if(count == 1)
     {
         delete _con;
